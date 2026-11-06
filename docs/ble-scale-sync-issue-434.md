@@ -141,6 +141,15 @@ connections (0x11 to 0x15 in this session).
 | b8 settings | `14 01 00 00 00 00 00 00 00 00 00 00` | slot, all zeros here |
 | b6 | `<seq> 01` | only after the scale replays a stored 0x26 record (first capture); absent when nothing is stored |
 
+- **b2 profile byte = (0x80 if male) | age in years.** Changing one setting at a time in the
+  Renpho app: male 30 → `0x9E`, female 30 → `0x1E`, female 32 → `0x20`. Athlete mode and
+  activity level are not sent to the scale at all (no byte in b2, b7 or b8 changed with them).
+  The guest byte `0xA9` fits the rule as male 41. So `rmsc04_profile_byte` could be derived from
+  `gender` and `birth_date` instead of sniffed.
+- **The scale's own body fat did not follow the byte.** With near-identical impedances, slot 01
+  gave 11.3 % (male 30), 11.2 % (female 32) and 11.5 % (female 30); skeletal muscle 50.3–50.6 %,
+  visceral 1 every time. Only height moved it (15.6 % with 175 cm). Worth knowing before
+  trusting the record's fat as "the scale's own" figure.
 - The app wrote b2 at connect and again after the 0x25 record. In one capture it also wrote b2
   after 0x24, in the other it didn't, so that write isn't required.
 - **0x25 byte [32] is the slot the record was computed for**: `01` in the app's session, `09` in
