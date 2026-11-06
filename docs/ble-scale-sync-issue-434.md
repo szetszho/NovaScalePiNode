@@ -34,7 +34,7 @@ later connection fails.
 ## Setup
 
 - ble-scale-sync 1.39.1 (built from source), built-in Linux transport (node-ble / BlueZ D-Bus)
-- Raspberry Pi: `<model>`, Raspberry Pi OS `<version>`, kernel `<uname -r>`, BlueZ `<bluetoothd -v>`
+- Raspberry Pi 4 Model B Rev 1.5 (built-in Bluetooth), Debian GNU/Linux 13 (trixie), kernel `6.18.50+rpt-rpi-v8`, BlueZ 5.82
 - `ble.rmsc04_profile_byte` set (captured from the Renpho app on iOS)
 
 ## Evidence
