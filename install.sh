@@ -36,17 +36,25 @@ if [[ "$(node_major)" -lt 22 ]]; then
 fi
 echo "Node $(node -v)"
 
-say "Installing ble-scale-sync (Bluetooth reader + Garmin uploader)"
-sudo npm install -g ble-scale-sync@latest --no-fund --no-audit
-BSS_BIN="$(command -v ble-scale-sync)"
-
+say "Installing ble-scale-sync from GitHub (Bluetooth reader + Garmin uploader)"
+# ble-scale-sync is not on the npm registry (npm install returns 404), so build it from source.
+sudo apt-get install -y -qq git build-essential >/dev/null
 mkdir -p "$BSS_DIR"
+SRC_DIR="$BSS_DIR/src"
+if [[ -d "$SRC_DIR/.git" ]]; then
+  git -C "$SRC_DIR" pull --ff-only -q
+else
+  git clone -q --depth 1 https://github.com/KristianP26/ble-scale-sync.git "$SRC_DIR"
+fi
+(cd "$SRC_DIR" && npm ci --no-fund --no-audit && npm run build)
+sudo npm install -g "$SRC_DIR" --no-fund --no-audit
+BSS_BIN="$(command -v ble-scale-sync)"
 if [[ ! -d "$BSS_DIR/venv" ]]; then
   say "Creating Python venv for the Garmin uploader"
   python3 -m venv "$BSS_DIR/venv"
 fi
 "$BSS_DIR/venv/bin/pip" install -q --upgrade pip
-"$BSS_DIR/venv/bin/pip" install -q -r "$(npm root -g)/ble-scale-sync/requirements.txt"
+"$BSS_DIR/venv/bin/pip" install -q -r "$SRC_DIR/requirements.txt"
 
 say "Setting up the shared ingest key"
 ENV_FILE="$BSS_DIR/.env"

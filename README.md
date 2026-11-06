@@ -181,7 +181,7 @@ ignored, so webhook retries and re-imports never create duplicates.
 ```bash
 systemctl status scale-hub ble-scale        # are both running?
 journalctl -u ble-scale -f                  # live Bluetooth log
-sudo npm install -g ble-scale-sync@latest && sudo systemctl restart ble-scale   # update
+./install.sh && sudo systemctl restart ble-scale   # update (pulls and rebuilds ble-scale-sync)
 cp ~/scale-hub/data/scale.db ~/scale-backup-$(date +%F).db                       # backup
 python3 ~/scale-hub/server.py --import-jsonl ~/ble-scale-sync/measurements.jsonl # rebuild DB from backup
 ```
