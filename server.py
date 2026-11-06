@@ -15,6 +15,7 @@ import csv
 import io
 import json
 import logging
+import math
 import os
 import re
 import sqlite3
@@ -140,12 +141,47 @@ def age_on(birth: str | None, when: datetime) -> int | None:
     return d.year - b.year - ((d.month, d.day) < (b.month, b.day))
 
 
-def estimate_composition(weight: float, p: dict, when: datetime) -> dict:
-    """Body composition from weight and the person's profile.
+# Fraction of the way from 20 to 100 kHz on a log-frequency scale where 50 kHz sits.
+F50 = math.log(50 / 20) / math.log(100 / 20)
 
-    Same formulas ble-scale-sync uses when a scale reports no body fat:
-    Deurenberg 1991 body fat, Mifflin-St Jeor BMR, lean-mass ratios for water,
-    bone and muscle. BMI needs only height; the rest needs height, age and sex.
+
+def whole_body_impedance(row) -> dict | None:
+    """Hand-to-foot impedance from the eight-electrode segment readings.
+
+    A hand-to-foot path runs through one arm, the trunk and one leg, so it is
+    approximated as arm + trunk + leg, averaged over the left and right sides.
+    The prediction equations below were built on 50 kHz measurements; 50 kHz is
+    interpolated between the scale's 20 and 100 kHz readings on a log-frequency
+    scale. At these frequencies impedance is within about 1 % of resistance.
+    """
+    def side_avg(freq):
+        v = {seg: row.get(f"impedance{seg}{freq}") for seg in ("Trunk", "LeftArm", "RightArm", "LeftLeg", "RightLeg")}
+        if any(x is None or x <= 0 for x in v.values()):
+            return None
+        return (v["LeftArm"] + v["RightArm"] + v["LeftLeg"] + v["RightLeg"]) / 2 + v["Trunk"]
+
+    z20, z100 = side_avg("20kHz"), side_avg("100kHz")
+    if z20 is None or z100 is None:
+        return None
+    z50 = z20 + (z100 - z20) * F50
+    if not 200 <= z50 <= 1200 or z100 > z20 * 1.02:
+        return None  # outside human range, or impedance rising with frequency: a bad contact
+    return {"z20": z20, "z100": z100, "z50": z50}
+
+
+def estimate_composition(weight: float, p: dict, when: datetime, row: dict | None = None,
+                         impedance_only: bool = False) -> dict:
+    """Body composition for one weigh-in and the person's profile.
+
+    With the scale's segment impedances (adults only):
+      fat-free mass  NHANES III equations, Chumlea et al. 2002, Int J Obes 26:1596
+      skeletal muscle Janssen et al. 2000, J Appl Physiol 89:465 (MRI-validated)
+      BMR            Katch-McArdle, from fat-free mass
+    Without them, the BMI-based fallback ble-scale-sync also uses: Deurenberg 1991
+    body fat and Mifflin-St Jeor BMR. Water, bone and muscle mass come from
+    fat-free mass in both cases. BMI needs only height; the rest needs height,
+    age and sex. impedance_only skips the BMI fallback, so a person whose history
+    has impedance doesn't get a trend that jumps between the two methods.
     """
     out: dict = {}
     h = p.get("height_cm")
@@ -157,18 +193,52 @@ def estimate_composition(weight: float, p: dict, when: datetime) -> dict:
     if age is None or sex not in ("male", "female"):
         return out
     male = 1 if sex == "male" else 0
-    bf = (1.51 * bmi - 0.7 * age - 3.6 * male + 1.4) if age <= 15 else (1.2 * bmi + 0.23 * age - 10.8 * male - 5.4)
-    if athlete:
-        bf *= 0.85
-    bf = max(3.0, min(bf, 60.0))
+    sex_const = 5 if male else -161
+    ideal_bmr = 10 * weight + 6.25 * h - 5 * 25 + sex_const  # Mifflin-St Jeor at age 25
+
+    wb = whole_body_impedance(row) if row and age >= 18 else None
+    ffm = smm = None
+    if wb:
+        hr = h * h / wb["z50"]
+        if male:
+            ffm = -10.678 + 0.262 * weight + 0.652 * hr + 0.015 * wb["z50"]
+        else:
+            ffm = -9.529 + 0.168 * weight + 0.696 * hr + 0.016 * wb["z50"]
+        smm = 0.401 * hr + 3.825 * male - 0.071 * age + 5.102
+        bf = 100 * (1 - ffm / weight)
+        if not (3 <= bf <= 60) or not (0 < smm < ffm):
+            ffm = smm = None  # equation pushed outside its valid range: fall back to BMI
+
+    if ffm is not None:
+        bf = 100 * (1 - ffm / weight)
+        bmr = 370 + 21.6 * ffm
+        source = "impedance"
+        out.update(
+            skeletalMuscleMass=round(smm, 1),
+            skeletalMusclePercent=round(smm / weight * 100, 1),
+            impedance50kHz=round(wb["z50"], 1),
+            impedanceRatio=round(wb["z100"] / wb["z20"], 3),
+        )
+    elif impedance_only:
+        return out
+    else:
+        bf = (1.51 * bmi - 0.7 * age - 3.6 * male + 1.4) if age <= 15 else (1.2 * bmi + 0.23 * age - 10.8 * male - 5.4)
+        if athlete:
+            bf *= 0.85
+        bf = max(3.0, min(bf, 60.0))
+        bmr = 10 * weight + 6.25 * h - 5 * age + sex_const
+        if athlete:
+            bmr *= 1.05
+        source = "bmi"
     lbm = weight * (1 - bf / 100)
     bone = lbm * 0.042
-    sex_const = 5 if male else -161
-    bmr = 10 * weight + 6.25 * h - 5 * age + sex_const
+    # Metabolic age has no standard definition; this is ble-scale-sync's (Mifflin-St Jeor
+    # against the same formula at 25), so it matches what reaches Garmin. Comparing the
+    # lean-mass BMR above against Mifflin would skew it by a decade or more.
+    mifflin = 10 * weight + 6.25 * h - 5 * age + sex_const
     if athlete:
-        bmr *= 1.05
-    ideal = 10 * weight + 6.25 * h - 5 * 25 + sex_const
-    meta_age = max(12, age + int((ideal - bmr) / 15))
+        mifflin *= 1.05
+    meta_age = max(12, age + int((ideal_bmr - mifflin) / 15))
     if athlete and meta_age > age:
         meta_age = age - 5
     out.update(
@@ -179,6 +249,7 @@ def estimate_composition(weight: float, p: dict, when: datetime) -> dict:
         visceralFat=max(1, min(int(bf * 0.55 - 4 + age * 0.08), 59)) if bf > 10 else 1,
         bmr=int(bmr),
         metabolicAge=meta_age,
+        composition_source=source,
     )
     return out
 
@@ -474,6 +545,11 @@ class Store:
     def _present(self, rows) -> list[dict]:
         """Rows as API objects, with body composition for the person each belongs to."""
         profiles = self._profile_map()
+        with_impedance = {
+            r[0] for r in self.conn.execute(
+                "SELECT DISTINCT profile FROM measurements WHERE profile IS NOT NULL AND impedanceTrunk100kHz > 0"
+            )
+        }
         out = []
         for r in rows:
             d = {
@@ -486,13 +562,16 @@ class Store:
                 if r[f] is not None:
                     d[f] = r[f]
             p = profiles.get(r["profile"]) if r["profile"] else None
-            if p and r["user_slug"] == p["slug"]:
-                # ble-scale-sync computed these for this same person (possibly the scale's own analysis).
+            if p and r["user_slug"] == p["slug"] and r["skeletalMusclePercent"] is not None:
+                # The scale's own analysis, computed for this person's profile byte
+                # (ble-scale-sync only sends skeletal muscle when it used it).
                 for f in PERSONAL_FIELDS:
                     if r[f] is not None:
                         d[f] = r[f]
+                d["composition_source"] = "scale"
             elif p:
-                d.update(estimate_composition(r["weight"], p, parse_ts(r["ts"])))
+                d.update(estimate_composition(r["weight"], p, parse_ts(r["ts"]), d,
+                                              impedance_only=p["slug"] in with_impedance))
                 d["estimated"] = True
             out.append(d)
         return out
@@ -692,7 +771,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def _csv(self, rows: list[dict]):
         buf = io.StringIO()
-        cols = ["id", "ts", "profile", "assign_method", "confidence", "estimated", *METRIC_FIELDS]
+        cols = ["id", "ts", "profile", "assign_method", "confidence", "composition_source", *METRIC_FIELDS,
+                "skeletalMuscleMass", "impedance50kHz", "impedanceRatio"]
         writer = csv.DictWriter(buf, fieldnames=cols, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(rows)

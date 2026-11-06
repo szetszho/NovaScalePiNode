@@ -66,6 +66,7 @@ main { padding-bottom: 40px; }
        border-radius: 6px; font-size: 12px; display: none; white-space: nowrap; z-index: 10; }
 .segments { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
 .segments div { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-variant-numeric: tabular-nums; }
+.segments .sub { display: block; font-size: 12px; color: var(--muted); }
 .segments b { display: block; font-size: 12px; color: var(--muted); font-weight: 500; }
 
 /* weigh-in rows (inbox + history) */
@@ -155,7 +156,8 @@ const METRICS = [
   { key: "weight", label: "Weight", unit: "mass", dp: 1, lowerIsGood: true },
   { key: "bodyFatPercent", label: "Body fat", unit: "%", dp: 1, lowerIsGood: true },
   { key: "muscleMass", label: "Muscle", unit: "mass", dp: 1, lowerIsGood: false },
-  { key: "skeletalMusclePercent", label: "Skeletal muscle", unit: "%", dp: 1, lowerIsGood: false },
+  { key: "skeletalMuscleMass", label: "Skeletal muscle", unit: "mass", dp: 1, lowerIsGood: false },
+  { key: "skeletalMusclePercent", label: "Skeletal muscle %", unit: "%", dp: 1, lowerIsGood: false },
   { key: "waterPercent", label: "Water", unit: "%", dp: 1, lowerIsGood: false },
   { key: "visceralFat", label: "Visceral fat", unit: "", dp: 0, lowerIsGood: true },
   { key: "boneMass", label: "Bone", unit: "mass", dp: 1, lowerIsGood: false },
@@ -339,11 +341,7 @@ function render() {
       <div class="d">${[deltaHtml(m, deltaVs(m, 7), "7d"), deltaHtml(m, deltaVs(m, 30), "30d")].filter(Boolean).join(" · ") || "&nbsp;"}</div>
     </div>`).join("");
 
-  const segSrc = lastWith("impedanceTrunk20kHz") || lastWith("impedanceLeftLeg20kHz");
-  const segRow = segSrc ? SEGMENTS.filter((s) => segSrc["impedance" + s + "20kHz"] != null || segSrc["impedance" + s + "100kHz"] != null) : [];
-  const segHtml = segRow.length ? `<div class="panel"><h2>Segment impedance <span class="muted">${dateLabel(segSrc.ts, true)} · ohm at 20 / 100 kHz</span></h2>
-    <div class="segments">${segRow.map((s) => `<div><b>${s.replace(/([A-Z])/g, " $1").trim()}</b>
-      ${segSrc["impedance" + s + "20kHz"] ?? "–"} / ${segSrc["impedance" + s + "100kHz"] ?? "–"}</div>`).join("")}</div></div>` : "";
+  const segHtml = segmentPanel();
 
   const m = METRICS.find((x) => x.key === state.metric);
   const tableCols = available.slice(0, 6);
@@ -355,16 +353,56 @@ function render() {
     ${missing.length ? `<p class="muted">Add ${missing.join(", ")} to <a href="#" data-edit="${esc(me.slug)}">${esc(me.name)}'s profile</a> for BMI and body-fat estimates.</p>` : ""}
     <div class="panel"><h2>${esc(me.name)} · ${m.label} <span class="muted">${state.rows.filter((r) => r[m.key] != null).length} readings · ${unitLabel(m) || "value"}</span></h2>
       <svg id="chart" role="img" aria-label="${m.label} over time"></svg>
-      ${anyEstimated && m.key !== "weight" ? `<p class="muted" style="margin:6px 0 0">Body composition is estimated from weight, height, age and sex.</p>` : ""}</div>
+      ${anyEstimated && m.key !== "weight" ? `<p class="muted" style="margin:6px 0 0">${sourceNote(lastWith(m.key)?.composition_source)}</p>` : ""}</div>
     ${segHtml}
     <div class="panel"><h2>${esc(me.name)}'s history <a href="/api/export.csv?days=all&profile=${encodeURIComponent(state.me)}" class="muted">Download CSV</a></h2>
       <div class="table-wrap"><table>
-        <thead><tr><th>Date</th>${tableCols.map((c) => `<th>${c.label}${unitLabel(c) ? " (" + unitLabel(c) + ")" : ""}</th>`).join("")}<th>How</th><th></th></tr></thead>
+        <thead><tr><th>Date</th>${tableCols.map((c) => `<th>${c.label}${unitLabel(c) && !c.label.endsWith("%") ? " (" + unitLabel(c) + ")" : ""}</th>`).join("")}<th>How</th><th></th></tr></thead>
         <tbody>${rowsDesc.map((r) => `<tr><td>${dateLabel(r.ts, true)}</td>${tableCols.map((c) => `<td>${fmt(c, r[c.key])}</td>`).join("")}
           <td><span class="badge">${r.assign_method === "manual" ? "claimed" : "auto " + Math.round((r.confidence ?? 0) * 100) + "%"}</span></td>
           <td>${assignSelect(r, true)}</td></tr>`).join("")}</tbody>
       </table></div></div>`;
   drawChart(m);
+}
+
+const SOURCE_NOTES = {
+  scale: "From the scale's own analysis for your profile.",
+  impedance: "Calculated from the scale's segment impedance: fat-free mass from the NHANES III equations, skeletal muscle from Janssen et al. 2000. Typical error about ±3–4 % body fat.",
+  bmi: "Estimated from weight, height, age and sex (no impedance in this weigh-in). Stay on the scale holding the handle until it shows results to get the impedance-based figures.",
+};
+function sourceNote(src) { return SOURCE_NOTES[src] || SOURCE_NOTES.bmi; }
+
+const segZ = (r, s, f) => r?.["impedance" + s + f];
+const segLabel = (s) => s.replace(/([A-Z])/g, " $1").trim();
+// Lean tissue conducts; for the same limb length, lean volume goes as 1/impedance.
+// 100 kHz passes through cells, so it reflects all body water in the segment.
+function leanDiffPct(zA, zB) { return zA && zB ? (zB / zA - 1) * 100 : null; }
+function signed(v, dp = 1) { return (v > 0 ? "+" : "") + v.toFixed(dp); }
+
+function segmentPanel() {
+  const src = lastWith("impedanceTrunk100kHz");
+  if (!src) return "";
+  const t = new Date(src.ts).getTime();
+  let ref = null;
+  for (const r of state.all) if (segZ(r, "Trunk", "100kHz") && new Date(r.ts).getTime() <= t - 25 * 864e5) ref = r;
+  const cell = (s) => {
+    const z20 = segZ(src, s, "20kHz"), z100 = segZ(src, s, "100kHz");
+    const ch = ref ? leanDiffPct(z100, segZ(ref, s, "100kHz")) : null;
+    const cls = ch == null || Math.abs(ch) < 0.5 ? "" : ch > 0 ? "down" : "up";
+    return `<div><b>${segLabel(s)}</b>${z20 ?? "–"} / ${z100 ?? "–"} Ω
+      ${ch != null ? `<span class="d sub"><span class="${cls}">${signed(ch)}%</span> lean vs ${dateLabel(ref.ts)}</span>` : ""}</div>`;
+  };
+  const bal = (a, b, name) => {
+    const d = leanDiffPct(segZ(src, a, "100kHz"), segZ(src, b, "100kHz"));
+    if (d == null) return "";
+    const side = Math.abs(d) < 1 ? "balanced" : d < 0 ? `right ${Math.abs(d).toFixed(1)}% leaner` : `left ${Math.abs(d).toFixed(1)}% leaner`;
+    return `<div><b>${name} balance</b>${side}</div>`;
+  };
+  const wb = src.impedance50kHz ? `<div><b>Whole body (50 kHz)</b>${src.impedance50kHz} Ω</div>
+    <div><b>100 / 20 kHz ratio</b>${src.impedanceRatio}<span class="d sub">lower = more cell mass</span></div>` : "";
+  return `<div class="panel"><h2>Segments <span class="muted">${dateLabel(src.ts, true)} · impedance at 20 / 100 kHz</span></h2>
+    <div class="segments">${SEGMENTS.map(cell).join("")}${bal("LeftArm", "RightArm", "Arm")}${bal("LeftLeg", "RightLeg", "Leg")}${wb}</div>
+    <p class="muted" style="margin:8px 0 0">Lean change and balance compare impedance at 100 kHz: lower impedance means more lean tissue and water in that segment. Hydration also moves it, so compare weigh-ins taken at the same time of day.</p></div>`;
 }
 
 function drawChart(m) {

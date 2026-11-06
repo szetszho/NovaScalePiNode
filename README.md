@@ -54,14 +54,49 @@ take the connection. Close it, or turn off Bluetooth on the phone.
 Strava, Intervals.icu, Home Assistant (MQTT), InfluxDB and others work the same way. See the
 [exporter list](https://blescalesync.dev/exporters).
 
-## Body fat accuracy
+## Body composition
 
-By default, ble-scale-sync gets the **weight** from the Nova, and body fat is a BMI-based estimate.
-To use the scale's own 8-electrode body fat, skeletal muscle and visceral fat, set
-`ble.rmsc04_profile_byte` in `config.yaml`. That byte comes from one Android Bluetooth HCI log
-of the Renpho app. Steps:
-<https://blescalesync.dev/guide/scales/renpho#own-body-fat>. Segment impedances
-(arms, legs, trunk) are shown on the dashboard when the scale sends them.
+Each weigh-in's body composition comes from the best source available, and the note under
+the chart says which one was used:
+
+1. **The scale's own analysis.** This needs `ble.rmsc04_profile_byte` (see below) and only
+   applies to the one person it was captured for.
+2. **Calculated from the scale's segment impedance (default).** When you stand barefoot,
+   hold the handle and stay on until the display shows results, the Nova sends ten raw
+   impedances: trunk, both arms and both legs, at 20 and 100 kHz. Scale Hub turns them into:
+   - **Whole-body impedance at 50 kHz:** arm + trunk + leg averaged over both sides, with
+     50 kHz interpolated between 20 and 100 kHz on a log scale. That is the input the
+     published equations use.
+   - **Fat-free mass and body fat:** NHANES III equations (Chumlea et al. 2002, Int J Obes
+     26:1596).
+   - **Skeletal muscle (kg and %):** Janssen et al. 2000 (J Appl Physiol 89:465), validated
+     against MRI in 388 adults; standard error about 2.7 kg.
+   - **BMR:** Katch-McArdle, from fat-free mass. Water, bone and muscle mass come from
+     fat-free mass.
+   - **Segments panel:** left/right lean balance for arms and legs, and each segment's lean
+     change over about 30 days. These compare 100 kHz impedance: for the same limb, lower
+     impedance means more lean tissue and water.
+   - **100/20 kHz ratio:** a lower ratio means more cell mass relative to fluid. Use it as a
+     trend, not a diagnosis.
+3. **BMI-based estimate.** Deurenberg's formula from weight, height, age and sex, used when
+   there's no impedance. Once a person has impedance weigh-ins, their weigh-ins without the
+   handle show weight and BMI only, so their trends don't jump between the two methods.
+
+Limits: the equations are for adults (18+); children get the BMI estimate. Janssen's equation
+underestimates skeletal muscle in Asian adults, and both equations were built on single-frequency
+hand-to-foot analyzers, so a summed eight-electrode path is an approximation. Expect about
+±3–4 % body fat against a lab method, and treat changes over weeks as more reliable than any
+single number. Weigh in at the same time of day, because hydration moves impedance. The Renpho
+app's per-limb fat and muscle figures use Renpho's own unpublished formula and are not
+reproduced here.
+
+### The scale's own body fat (`rmsc04_profile_byte`)
+
+To use the scale's own body fat, skeletal muscle and visceral fat for one person, set
+`ble.rmsc04_profile_byte` in `~/ble-scale-sync/config.yaml`. The byte comes from one Android
+Bluetooth HCI log of the Renpho app. Steps:
+<https://blescalesync.dev/guide/scales/renpho#own-body-fat>. That person's user in
+`config.yaml` needs the same slug as their Scale Hub profile.
 
 ## Household (multi-user, no login)
 
@@ -84,11 +119,9 @@ The badge shows how sure the match was, for example `auto 96%`.
 - A manual claim never gets changed automatically. Each claim also improves future matching: one
   claim can settle a whole batch of that person's unclaimed readings.
 
-**Body composition per person.** BMI, body fat, water, muscle, bone, BMR and metabolic age are
-estimated from weight plus that person's height, age and sex (the same formulas ble-scale-sync
-uses when a scale reports no body fat). Readings for the person set up in
-`~/ble-scale-sync/config.yaml` with the **same slug** as their dashboard profile keep
-ble-scale-sync's values, including the scale's own analysis when `rmsc04_profile_byte` is set.
+**Body composition per person.** Every weigh-in is calculated for the person it belongs to,
+from the impedance plus their height, age and sex (see [Body composition](#body-composition)).
+Moving a reading to someone else recalculates it for them.
 
 **Garmin with several people.** Garmin uploads happen in ble-scale-sync at weigh-in time, using
 its own matching by `weight_range`. A claim on the dashboard does not move a Garmin upload. For
