@@ -243,6 +243,34 @@ code { font-size: 12px; background: var(--surface-2); padding: 1px 6px; border-r
 .empty h2 { font-size: 20px; margin: 0 0 8px; }
 .empty p { color: var(--muted); max-width: 440px; margin: 0 auto 16px; }
 
+/* ---------- guest ---------- */
+.guest { max-width: 640px; margin: 8px auto 0; }
+.guest .stage { text-align: center; padding: 36px 20px 28px; }
+.guest .stage h2 { font-size: 24px; margin: 18px 0 6px; letter-spacing: -0.02em; }
+.guest .stage p { color: var(--muted); margin: 0 auto; max-width: 420px; }
+.guest .count { font-family: var(--num); font-size: 56px; font-weight: 700; margin: 10px 0 0; font-variant-numeric: tabular-nums; }
+.pulse { width: 92px; height: 92px; border-radius: 50%; margin: 0 auto; display: grid; place-items: center; color: #fff; background: var(--pc); position: relative; }
+.pulse::after { content: ""; position: absolute; inset: 0; border-radius: 50%; border: 2px solid var(--pc); animation: ring 1.8s cubic-bezier(.16,1,.3,1) infinite; }
+.pulse.idle { background: var(--surface-2); color: var(--muted); } .pulse.idle::after { animation: none; border: 0; }
+@keyframes ring { from { transform: scale(1); opacity: .8; } to { transform: scale(1.7); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .pulse::after { animation: none; } }
+.steps { text-align: left; max-width: 380px; margin: 22px auto 0; padding: 0; list-style: none; display: grid; gap: 10px; counter-reset: step; }
+.steps li { display: grid; grid-template-columns: 26px 1fr; gap: 10px; align-items: start; font-size: 14.5px; }
+.steps li::before { counter-increment: step; content: counter(step); width: 24px; height: 24px; border-radius: 50%; background: var(--surface-2); display: grid; place-items: center; font-size: 12px; font-weight: 700; color: var(--muted); }
+.guest .actions { display: flex; gap: 8px; justify-content: center; margin-top: 24px; flex-wrap: wrap; }
+.report-head { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; flex-wrap: wrap; }
+.report-head h1 { font-size: 22px; margin: 0; letter-spacing: -0.02em; }
+.report-head .actions { margin-left: auto; display: flex; gap: 8px; }
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 620px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.kpis .k { font-size: 13px; color: var(--muted); }
+.kpis .v { font-family: var(--num); font-size: 30px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.kpis .v small { font-size: 13px; color: var(--muted); font-weight: 600; margin-left: 3px; letter-spacing: 0; }
+@media print {
+  .bar, .tabs, .actions, .report-head .actions, details.more:not([open]) { display: none !important; }
+  body { background: #fff; } .card { box-shadow: none; break-inside: avoid; } main { padding: 0; }
+}
+
 dialog { border: 0; border-radius: 22px; background: var(--surface); color: var(--ink); padding: 22px; width: min(460px, calc(100vw - 24px));
          box-shadow: 0 30px 80px -30px #000a; }
 dialog::backdrop { background: #0007; backdrop-filter: blur(2px); }
@@ -305,6 +333,24 @@ dialog h3 { margin: 0 0 16px; font-size: 18px; }
   </form>
 </dialog>
 
+<dialog id="gdlg">
+  <form method="dialog" id="gform">
+    <h3>Guest weigh-in</h3>
+    <p class="small muted" style="margin:-8px 0 16px">One weigh-in with a full report. The scale goes back to its usual profile straight after.</p>
+    <div class="form">
+      <label class="full">Name<input name="name" maxlength="40" placeholder="Guest" autocomplete="off"></label>
+      <label>Height (cm)<input name="height_cm" type="number" step="0.5" min="50" max="250" required inputmode="decimal"></label>
+      <label>Age<input name="age" type="number" min="6" max="100" required inputmode="numeric"></label>
+      <label class="full">Sex<select name="sex" required><option value="">Choose</option><option value="female">Female</option><option value="male">Male</option></select></label>
+      <p class="hint">Height, age and sex go to the scale for this one weigh-in, so it can work out body composition.</p>
+    </div>
+    <div class="err" id="gerr"></div>
+    <div class="dlg-acts"><span class="spacer"></span>
+      <button type="button" class="btn" id="gcancel">Cancel</button>
+      <button type="submit" class="btn primary">Start</button></div>
+  </form>
+</dialog>
+
 <script>
 const METRICS = [
   { key: "weight", label: "Weight", unit: "mass", dp: 1, lowerIsGood: true },
@@ -339,7 +385,9 @@ const state = {
   days: localGet("days", "90"), unit: localGet("unit", "kg"), tab: localGet("tab", "overview"),
   me: localGet("me", ""), metric: localGet("metric", "weight"), bodyMode: localGet("bodyMode", "muscle"),
   profiles: [], rows: [], all: [], recent: [], unclaimed: [], settings: { scale_profile: null, sync: {} }, sel: new Set(),
+  guest: { state: null }, guestRow: null, viewGuest: null,
 };
+const people = () => state.profiles.filter((p) => !p.is_guest);
 
 function localGet(k, d) { try { return localStorage.getItem("sh." + k) ?? d; } catch { return d; } }
 function localSet(k, v) { try { localStorage.setItem("sh." + k, v); } catch {} }
@@ -393,10 +441,15 @@ const secondaryName = (r) => r?.composition_source === "scale" ? "Model" : "Scal
 async function load() {
   const [profiles, settings] = await Promise.all([getJSON("/api/profiles"), getJSON("/api/settings")]);
   state.profiles = profiles; state.settings = settings;
-  if (state.me && !prof(state.me)) state.me = "";
-  if (!state.me && state.profiles.length) state.me = state.profiles[0].slug;
+  if (state.me && !people().some((p) => p.slug === state.me)) state.me = "";
+  if (!state.me && people().length) state.me = people()[0].slug;
+  state.guest = await getJSON("/api/guest");
+  const gslug = state.viewGuest || (state.guest.state === "done" ? state.guest.slug : null);
+  state.guestRow = gslug ? (await getJSON(`/api/measurements?days=all&profile=${encodeURIComponent(gslug)}`)).pop() || null : null;
+  guestPoll();
   const [recent, unclaimed] = await Promise.all([getJSON("/api/recent?limit=15"), getJSON("/api/measurements?profile=_unassigned&days=30")]);
-  state.recent = recent; state.unclaimed = unclaimed.reverse();
+  const notGuest = (r) => !state.profiles.some((p) => p.is_guest && p.slug === r.profile);
+  state.recent = recent.filter(notGuest); state.unclaimed = unclaimed.reverse();
   if (state.me) {
     const q = (days) => `/api/measurements?days=${days}&profile=${encodeURIComponent(state.me)}`;
     state.rows = await getJSON(q(state.days));
@@ -438,7 +491,7 @@ function whoTag(r) {
   return `<span class="pill warn">needs a name</span>${guess}`;
 }
 function assignSelect(r, compact) {
-  const opts = state.profiles.filter((p) => p.slug !== r.profile).map((p) => `<option value="${esc(p.slug)}">${esc(p.name)}</option>`).join("");
+  const opts = people().filter((p) => p.slug !== r.profile).map((p) => `<option value="${esc(p.slug)}">${esc(p.name)}</option>`).join("");
   const guest = r.assign_method === "manual" && !r.profile ? "" : `<option value="_guest">Guest / not us</option>`;
   const back = r.assign_method === "manual" ? `<option value="_auto">Back to automatic</option>` : "";
   return `<select class="plain" data-assign="${r.id}" data-w="${r.weight}" data-ts="${esc(r.ts)}" aria-label="Assign weigh-in">
@@ -460,12 +513,14 @@ function renderShell() {
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[id]}</svg>
     ${label}${id === "history" && n ? `<span class="count">${n}</span>` : ""}</button>`).join("");
   const me = prof(state.me);
-  $("#who").innerHTML = me ? `${avatar(me)}${esc(me.name)}<svg width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>` : "Add person";
+  const chev = `<svg width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>`;
+  $("#who").innerHTML = me ? `${avatar(me)}${esc(me.name)}${chev}` : `<span style="padding-left:8px">People</span>${chev}`;
   $("#unit").textContent = state.unit;
-  $("#menu").innerHTML = state.profiles.map((p) => `<button data-me="${esc(p.slug)}">${avatar(p, "sm")}${esc(p.name)}
+  $("#menu").innerHTML = people().map((p) => `<button data-me="${esc(p.slug)}">${avatar(p, "sm")}${esc(p.name)}
       ${p.slug === state.settings.scale_profile ? '<span class="pill">scale</span>' : ""}${p.slug === state.me ? '<svg class="check" width="14" height="14" viewBox="0 0 14 14" aria-label="selected"><path d="M2.5 7.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ""}</button>`).join("")
-    + (state.profiles.length ? "<hr>" : "")
-    + (me ? `<button data-edit="${esc(me.slug)}">Edit ${esc(me.name)}</button>` : "") + `<button data-add>Add person</button>`;
+    + (people().length ? "<hr>" : "")
+    + (me ? `<button data-edit="${esc(me.slug)}">Edit ${esc(me.name)}</button>` : "") + `<button data-add>Add person</button>`
+    + `<hr><button data-guest>Guest weigh-in</button>`;
   if (me) document.documentElement.style.setProperty("--pc", me.color);
 }
 
@@ -473,11 +528,12 @@ function render() {
   renderShell();
   const app = $("#app"), me = prof(state.me);
   app.classList.remove("view"); void app.offsetWidth; app.classList.add("view");
+  if (state.viewGuest || ["waiting", "done", "cancelled"].includes(state.guest.state)) { app.innerHTML = guestView(); return; }
   if (state.tab === "settings") { app.innerHTML = settingsTab(); return; }
-  if (!state.profiles.length) {
+  if (!people().length) {
     app.innerHTML = `<div class="card empty"><h2>Who uses this scale?</h2>
       <p>Add a profile for each person. There's no login: everyone picks their name at the top. Weigh-ins are matched to people by weight, and anyone can claim one that's theirs.</p>
-      <button class="btn primary" data-add>Add the first person</button>
+      <button class="btn primary" data-add>Add the first person</button> <button class="btn" data-guest>Guest weigh-in</button>
       ${state.recent.length ? `<p class="small" style="margin-top:16px">${state.recent.length} weigh-ins are waiting.</p>` : ""}</div>`;
     return;
   }
@@ -642,7 +698,7 @@ function segmentList(src, ref, mode) {
 
 const STD_LABEL = { weight: "Weight", fatMass: "Fat mass", boneMass: "Bone", proteinMass: "Protein",
                     waterMass: "Water", muscleMass: "Muscle", skeletalMuscleMass: "Skeletal muscle" };
-function standardsCard(r) {
+function standardsCard(r, p = prof(state.me)) {
   if (!r.standards) return "";
   const row = (s) => {
     const a = s.lo * 0.6, b = s.hi * 1.45, pos = (v) => Math.max(1, Math.min(99, (v - a) / (b - a) * 100));
@@ -650,7 +706,6 @@ function standardsCard(r) {
       <div class="track"><span class="band" style="left:${pos(s.lo)}%;width:${pos(s.hi) - pos(s.lo)}%"></span><span class="mark" style="left:${pos(s.value)}%"></span></div>
       <div class="val">${fmtW(s.value)}<span class="ev-${s.eval}">${EVAL[s.eval]}</span></div></div>`;
   };
-  const p = prof(state.me);
   return `<section class="card"><div class="card-head"><h2>Against standard</h2><span class="small muted">${esc(p?.height_cm ?? "")} cm · ${esc(p?.sex ?? "")}</span></div>
     ${r.segmental ? `<div class="stats">
       <div><div class="k">Obesity degree</div><div class="v">${r.segmental.obesityDegree}<small>%</small></div></div>
@@ -756,7 +811,8 @@ function selText() { return state.sel.size ? `${state.sel.size} selected` : "Sel
 // ---------- settings ----------
 function settingsTab() {
   const s = state.settings, sync = s.sync || {}, sp = prof(s.scale_profile);
-  const people = state.profiles.map((p) => {
+  const guests = state.profiles.filter((p) => p.is_guest && p.count);
+  const peopleHtml = people().map((p) => {
     const age = ageOf(p.birth_date);
     const bits = [p.height_cm && `${p.height_cm} cm`, age != null && `${age} y`, p.sex, p.athlete && "athlete",
                   p.body_reference === "east_asian" && "East Asian", `${p.primary_source === "model" ? "model" : "scale"} first`].filter(Boolean);
@@ -764,11 +820,16 @@ function settingsTab() {
       <span class="small muted">${esc(bits.join(" · "))} · ${p.count} weigh-ins</span></div><button class="btn" data-edit="${esc(p.slug)}">Edit</button></div>`;
   }).join("");
   const ready = (p) => p.height_cm && p.birth_date && p.sex;
-  const opts = `<option value="">Not managed (keep config.yaml as it is)</option>` + state.profiles.map((p) =>
+  const opts = `<option value="">Not managed (keep config.yaml as it is)</option>` + people().map((p) =>
     `<option value="${esc(p.slug)}" ${p.slug === s.scale_profile ? "selected" : ""} ${ready(p) ? "" : "disabled"}>${esc(p.name)}${ready(p) ? "" : " (needs height, birth date, sex)"}</option>`).join("");
   const cls = !s.scale_profile ? "" : sync.ok === false ? "bad" : sync.warning ? "warn" : "ok";
   return `<section class="card"><div class="card-head"><h2>People</h2><button class="btn" data-add>Add person</button></div>
-      ${people ? `<div class="people">${people}</div>` : `<p class="muted">No profiles yet.</p>`}</section>
+      ${peopleHtml ? `<div class="people">${peopleHtml}</div>` : `<p class="muted">No profiles yet.</p>`}</section>
+    <section class="card"><div class="card-head"><h2>Guests</h2><button class="btn" data-guest>Guest weigh-in</button></div>
+      <p class="small muted" style="margin:0 0 ${guests.length ? 10 : 0}px">A visitor gets one weigh-in with a full report, computed by the scale for their height, age and sex. The scale goes back to its usual profile straight after, and guests never show up in your history.</p>
+      ${guests.length ? `<div class="people">${guests.map((p) => `<div class="person">${avatar(p, "lg")}<div class="info"><b>${esc(p.name)}</b>
+        <span class="small muted">${esc(dateLabel(p.last || p.created, true))} · ${p.height_cm} cm · ${ageOf(p.birth_date)} y · ${esc(p.sex)}</span></div>
+        <button class="btn" data-viewguest="${esc(p.slug)}">Report</button></div>`).join("")}</div>` : ""}</section>
     <section class="card"><div class="card-head"><h2>Scale profile</h2></div>
       <p class="small muted" style="margin:0 0 14px">The scale computes its own analysis for one profile, sent at the start of every weigh-in. Pick who gets it; everyone else gets Scale Hub's model.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -791,6 +852,78 @@ async function saveSettings(body) {
   if (!res.ok) alert("Could not save: " + (data.error || res.status));
   load();
 }
+
+// ---------- guest weigh-in ----------
+let guestTimer = null;
+function guestPoll() {
+  clearInterval(guestTimer);
+  if (state.guest.state !== "waiting") return;
+  guestTimer = setInterval(async () => {
+    const g = await getJSON("/api/guest").catch(() => null);
+    if (!g) return;
+    if (g.state !== "waiting") { load(); return; }
+    state.guest = g;
+    const el = $("#guestStage");
+    if (el) el.outerHTML = guestStage(g);
+  }, 1000);
+}
+function mmss(ms) { const s = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; }
+function guestStage(g) {
+  const now = Date.now(), ready = new Date(g.ready_at).getTime(), left = new Date(g.expires).getTime() - now;
+  if (now < ready) return `<div class="stage" id="guestStage"><div class="pulse idle"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg></div>
+    <h2>Getting the scale ready</h2><p>Sending ${esc(g.name)}'s height, age and sex to the scale.</p>
+    <div class="count">${Math.ceil((ready - now) / 1000)}</div><p class="small">Don't step on yet.</p></div>`;
+  return `<div class="stage" id="guestStage"><div class="pulse"><svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4.5" r="2.2"/><path d="M6 9h12M12 9v6M12 15l-3 6M12 15l3 6"/></svg></div>
+    <h2>Step on the scale now</h2><p>The next weigh-in is ${esc(g.name)}'s.</p>
+    <ol class="steps"><li>Barefoot, feet on the metal pads.</li><li>Lift the handle and hold it with both hands, arms straight down.</li>
+      <li>Stay still until the scale shows the full result, about 20 seconds.</li></ol>
+    <p class="small" style="margin-top:20px">This guest session ends in ${mmss(left)}.</p></div>`;
+}
+function guestView() {
+  const g = state.guest;
+  if (!state.viewGuest && g.state === "waiting") return `<div class="guest"><section class="card">${guestStage(g)}
+      <div class="actions" style="margin:0 0 8px"><button class="btn" id="guestCancel">Cancel guest weigh-in</button></div></section></div>`;
+  if (!state.viewGuest && g.state === "cancelled") return `<div class="guest"><section class="card"><div class="stage">
+      <div class="pulse idle"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 7v6M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg></div>
+      <h2>${g.reason === "expired" ? "No weigh-in arrived" : "Guest weigh-in cancelled"}</h2>
+      <p>The scale is back on its usual profile.${g.reason === "expired" ? " If the scale did show a result, its connection to the Pi may have dropped; try again." : ""}</p>
+      <div class="actions"><button class="btn primary" data-guest>Try again</button><button class="btn" id="guestClose">Close</button></div></div></section></div>`;
+  const slug = state.viewGuest || g.slug, p = prof(slug), r = state.guestRow;
+  if (!p || !r) return `<div class="guest"><section class="card"><div class="stage"><h2>Report not found</h2><div class="actions"><button class="btn" id="guestClose">Close</button></div></div></section></div>`;
+  const mode = r.segmental ? (state.bodyMode === "fat" ? "fat" : "muscle") : "balance";
+  const kpi = (k, v, u) => v == null ? "" : `<div><div class="k">${k}</div><div class="v">${v}<small>${u}</small></div></div>`;
+  return `<div class="report-head">${avatar(p, "lg")}<div><h1>${esc(p.name)}'s body composition</h1>
+      <div class="small muted">${dateLabel(r.ts, true)} · ${p.height_cm} cm · ${ageOf(p.birth_date)} y · ${esc(p.sex)}</div></div>
+      <div class="actions"><button class="btn" onclick="print()">Print</button><button class="btn danger" id="guestDelete" data-slug="${esc(slug)}">Delete</button><button class="btn primary" id="guestClose">Done</button></div></div>
+    <section class="card"><div class="kpis">
+      ${kpi("Weight", fmt({ unit: "mass", dp: 1 }, r.weight), state.unit)}${kpi("Body fat", r.bodyFatPercent?.toFixed(1), "%")}
+      ${kpi("Skeletal muscle", r.skeletalMuscleMass != null ? fmt({ unit: "mass", dp: 1 }, r.skeletalMuscleMass) : null, state.unit)}
+      ${kpi("BMI", r.bmi?.toFixed(1), bmiCategory(r.bmi, p.body_reference))}</div>
+      ${r.impedanceTrunk100kHz ? "" : `<p class="note">The scale sent only the weight, so there's no body composition. For a full scan stay on holding the handle until the scale shows the result.</p>`}</section>
+    ${r.impedanceTrunk100kHz ? `<div class="cols">
+      <section class="card"><div class="card-head"><h2>Body map</h2>${r.segmental ? `<div class="seg" role="group" aria-label="Show">
+          <button data-bmode="muscle" class="${mode === "muscle" ? "on" : ""}">Muscle</button><button data-bmode="fat" class="${mode === "fat" ? "on" : ""}">Fat</button></div>` : ""}</div>
+        <div class="bodymap">${bodyFigure(r, null, mode)}${segmentList(r, null, mode)}</div>
+        ${comparison(r, p)}</section>
+      <div>${standardsCard(r, p)}</div></div>` : ""}`;
+}
+async function startGuest(e) {
+  e.preventDefault();
+  const f = $("#gform").elements;
+  const res = await api("/api/guest", { method: "POST", body: JSON.stringify({ name: f.name.value, height_cm: f.height_cm.value, age: f.age.value, sex: f.sex.value }) });
+  const data = await res.json();
+  if (!res.ok) { $("#gerr").textContent = data.error || "Could not start"; return; }
+  $("#gdlg").close();
+  state.viewGuest = null;
+  load();
+}
+function openGuest() {
+  closeMenu();
+  $("#gform").reset(); $("#gerr").textContent = "";
+  $("#gdlg").showModal();
+}
+$("#gform").onsubmit = startGuest;
+$("#gcancel").onclick = () => $("#gdlg").close();
 
 // ---------- chart ----------
 function drawChart(m) {
@@ -895,11 +1028,26 @@ $("#pdelete").onclick = async () => {
 const closeMenu = () => $("#menu").classList.remove("open");
 document.addEventListener("click", (e) => {
   const t = e.target;
-  if (t.closest("#who")) { if (!state.profiles.length) openProfile(null); else $("#menu").classList.toggle("open"); return; }
+  if (t.closest("#who")) { $("#menu").classList.toggle("open"); return; }
   if (!t.closest("#menu")) closeMenu();
   const edit = t.closest("[data-edit]");
   if (edit) { e.preventDefault(); openProfile(edit.dataset.edit); return; }
   if (t.closest("[data-add]")) { openProfile(null); return; }
+  if (t.closest("[data-guest]")) { openGuest(); return; }
+  const vg = t.closest("[data-viewguest]");
+  if (vg) { state.viewGuest = vg.dataset.viewguest; load(); scrollTo({ top: 0 }); return; }
+  if (t.closest("#guestCancel")) { api("/api/guest/cancel", { method: "POST" }).then(load); return; }
+  if (t.closest("#guestClose")) {
+    if (state.viewGuest) { state.viewGuest = null; load(); return; }
+    api("/api/guest/close", { method: "POST" }).then(load); return;
+  }
+  const gd = t.closest("#guestDelete");
+  if (gd) {
+    if (!confirm("Delete this guest's weigh-in and report? This can't be undone.")) return;
+    api(`/api/profiles/${gd.dataset.slug}`, { method: "DELETE" }).then(() => { const viewing = state.viewGuest; state.viewGuest = null;
+      return viewing ? null : api("/api/guest/close", { method: "POST" }); }).then(load);
+    return;
+  }
   const tab = t.closest("[data-tab]");
   if (tab) { e.preventDefault(); state.tab = tab.dataset.tab; localSet("tab", state.tab); render(); scrollTo({ top: 0 }); return; }
   const me = t.closest("[data-me]");
@@ -944,7 +1092,7 @@ document.addEventListener("change", (e) => {
 addEventListener("scroll", () => $("#bar").classList.toggle("scrolled", scrollY > 4), { passive: true });
 if (!TABS.some(([id]) => id === state.tab)) state.tab = "overview";
 let resizeT; addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(() => { if (state.tab === "overview") drawChart(METRICS.find((x) => x.key === state.metric)); }, 150); });
-setInterval(() => { if (!document.hidden && !dlg.open && state.tab !== "settings" && !state.sel.size && !$("#menu").classList.contains("open")) load(); }, 30000);
+setInterval(() => { if (!document.hidden && !dlg.open && !$("#gdlg").open && state.tab !== "settings" && !state.sel.size && state.guest.state !== "waiting" && !state.viewGuest && !$("#menu").classList.contains("open")) load(); }, 30000);
 load().catch((err) => { $("#app").innerHTML = `<div class="card empty"><h2>Can't reach Scale Hub</h2><p>${esc(err.message)}</p></div>`; console.error(err); });
 </script>
 </body>

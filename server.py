@@ -18,6 +18,7 @@ import logging
 import math
 import os
 import re
+import signal
 import sqlite3
 import statistics
 import sys
@@ -192,6 +193,13 @@ def segmental(p: dict, weight: float, comp: dict, row: dict) -> dict | None:
 # ble-scale-sync's config, which Scale Hub keeps in step with the chosen scale profile.
 BSS_CONFIG = Path(os.environ.get("SCALE_HUB_BSS_CONFIG") or Path.home() / "ble-scale-sync" / "config.yaml")
 RESYNC_SECONDS = 6 * 3600  # re-check the profile byte (age changes on birthdays)
+GUEST_MINUTES = 10         # a guest session ends by itself when nobody weighs in by then
+GUEST_READY_SECONDS = 12   # ble-scale-sync's restart (systemd RestartSec=5) plus start-up
+GUEST_COLOR = "#8a8580"
+# ble-scale-sync applies a config change only before its next scan, and an idle scan can run until
+# someone steps on, so starting or cancelling a guest session restarts it (same user, so a SIGTERM;
+# systemd brings it back with the new profile). SCALE_HUB_RESTART_BSS=0 turns that off.
+RESTART_BSS = os.environ.get("SCALE_HUB_RESTART_BSS", "1") != "0"
 
 PALETTE = ["#0f766e", "#7c3aed", "#c2410c", "#2563eb", "#be185d", "#4d7c0f", "#b45309", "#0e7490"]
 
@@ -216,6 +224,7 @@ CREATE TABLE IF NOT EXISTS profiles (
     start_weight REAL,
     body_reference TEXT NOT NULL DEFAULT 'general',
     primary_source TEXT NOT NULL DEFAULT 'scale',
+    is_guest INTEGER NOT NULL DEFAULT 0,   -- one-off guest weigh-in: hidden from pickers and matching
     created TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
@@ -517,6 +526,30 @@ def write_bss_config(path: Path, p: dict, byte: int, last_weight: float | None) 
     return True, warning
 
 
+def restart_bss() -> int:
+    """SIGTERM every ble-scale-sync process of this user; systemd (Restart=always) starts it
+    again, and it loads config.yaml fresh. Returns how many processes were signalled."""
+    me, n = os.getuid(), 0
+    for pid in os.listdir("/proc") if os.path.isdir("/proc") else []:
+        if not pid.isdigit() or int(pid) == os.getpid():
+            continue
+        try:
+            if os.stat(f"/proc/{pid}").st_uid != me:
+                continue
+            with open(f"/proc/{pid}/cmdline", "rb") as fh:
+                cmd = fh.read().replace(b"\0", b" ")
+        except OSError:
+            continue
+        if b"ble-scale-sync" in cmd and b"server.py" not in cmd:
+            try:
+                os.kill(int(pid), signal.SIGTERM)
+                n += 1
+            except OSError:
+                pass
+    log.info("Restarted ble-scale-sync (%d process%s signalled)", n, "" if n == 1 else "es")
+    return n
+
+
 class ClaimConflict(Exception):
     def __init__(self, row):
         super().__init__("already claimed")
@@ -550,6 +583,8 @@ class Store:
             self.conn.execute("ALTER TABLE profiles ADD COLUMN body_reference TEXT NOT NULL DEFAULT 'general'")
         if "primary_source" not in pcols:
             self.conn.execute("ALTER TABLE profiles ADD COLUMN primary_source TEXT NOT NULL DEFAULT 'scale'")
+        if "is_guest" not in pcols:
+            self.conn.execute("ALTER TABLE profiles ADD COLUMN is_guest INTEGER NOT NULL DEFAULT 0")
         if upgrading:
             # v1 databases: turn each ble-scale-sync user into a profile and keep its readings.
             rows = self.conn.execute(
@@ -575,8 +610,9 @@ class Store:
             ).fetchall()
         return [dict(r) for r in rows]
 
-    def _profile_map(self) -> dict[str, dict]:
-        return {r["slug"]: dict(r) for r in self.conn.execute("SELECT * FROM profiles")}
+    def _profile_map(self, guests: bool = True) -> dict[str, dict]:
+        sql = "SELECT * FROM profiles" + ("" if guests else " WHERE is_guest=0")
+        return {r["slug"]: dict(r) for r in self.conn.execute(sql)}
 
     def save_profile(self, data: dict, slug: str | None = None) -> dict:
         name = str(data.get("name") or "").strip()[:40]
@@ -641,6 +677,13 @@ class Store:
 
     def delete_profile(self, slug: str) -> bool:
         with self.lock:
+            row = self.conn.execute("SELECT is_guest FROM profiles WHERE slug=?", (slug,)).fetchone()
+            if row and row["is_guest"]:
+                # A guest's report belongs to them: deleting it deletes the weigh-in too.
+                if self.get_setting("guest_slug") == slug:
+                    self.cancel_guest()
+                    self._clear_guest()
+                self.conn.execute("DELETE FROM measurements WHERE profile=?", (slug,))
             cur = self.conn.execute("DELETE FROM profiles WHERE slug=?", (slug,))
             if cur.rowcount == 0:
                 return False
@@ -671,8 +714,10 @@ class Store:
             self.conn.commit()
 
     def set_scale_profile(self, slug: str | None) -> dict:
-        if slug is not None and slug not in self._profile_map():
+        if slug is not None and slug not in self._profile_map(guests=False):
             raise ValueError("unknown profile")
+        if self.get_setting("guest_state") == "waiting":
+            raise ValueError("a guest weigh-in is running; finish or cancel it first")
         self.set_setting("scale_profile", slug)
         return self.sync_scale()
 
@@ -711,6 +756,116 @@ class Store:
         self.last_sync = status
         log.info("Scale profile sync: %s", status["message"])
         return status
+
+    # --- guest weigh-in -----------------------------------------------------
+    # One weigh-in for someone without a profile: a temporary guest profile becomes the scale
+    # profile, the next reading is theirs, then the previous scale profile comes back.
+
+    def guest_status(self) -> dict:
+        slug = self.get_setting("guest_slug")
+        if not slug:
+            return {"state": None}
+        state = self.get_setting("guest_state")
+        expires = parse_ts(self.get_setting("guest_expires"))
+        if state == "waiting" and expires and utc_now() > expires:
+            self.cancel_guest(reason="expired")
+            state = self.get_setting("guest_state")
+        p = self._profile_map().get(slug) or {}
+        mid = self.get_setting("guest_mid")
+        return {"state": state, "slug": slug, "name": p.get("name"), "started": self.get_setting("guest_started"),
+                "ready_at": self.get_setting("guest_ready_at"), "expires": self.get_setting("guest_expires"),
+                "measurement": int(mid) if mid else None, "reason": self.get_setting("guest_reason")}
+
+    def start_guest(self, data: dict) -> dict:
+        try:
+            height = float(data.get("height_cm"))
+            age = int(data.get("age"))
+        except (TypeError, ValueError):
+            raise ValueError("height and age are required")
+        if not 50 <= height <= 250:
+            raise ValueError("height must be between 50 and 250 cm")
+        if not 6 <= age <= 100:
+            raise ValueError("age must be between 6 and 100")
+        sex = data.get("sex")
+        if sex not in ("male", "female"):
+            raise ValueError("sex is required")
+        name = str(data.get("name") or "").strip()[:40] or "Guest"
+        if self.get_setting("guest_slug"):
+            if self.get_setting("guest_state") == "waiting":
+                self.cancel_guest(reason="replaced", restart=False)
+            self._drop_empty_guest(self.get_setting("guest_slug"))
+        today = date.today()
+        try:
+            birth = today.replace(year=today.year - age)
+        except ValueError:  # 29 February
+            birth = today.replace(year=today.year - age, day=28)
+        now = utc_now()
+        base = "guest-" + now.strftime("%Y%m%d-%H%M%S")
+        with self.lock:
+            slug, n = base, 2
+            while self.conn.execute("SELECT 1 FROM profiles WHERE slug=?", (slug,)).fetchone():
+                slug, n = f"{base}-{n}", n + 1
+            self.conn.execute(
+                "INSERT INTO profiles (slug, name, color, height_cm, birth_date, sex, athlete, start_weight, "
+                "body_reference, primary_source, is_guest, created) VALUES (?,?,?,?,?,?,?,?,?,?,1,?)",
+                (slug, name, GUEST_COLOR, height, birth.isoformat(), sex, 0, None,
+                 data.get("body_reference") if data.get("body_reference") in BODY_REFERENCES else "general",
+                 "scale", to_iso(now)),
+            )
+            self.conn.commit()
+        self.set_setting("guest_prev", self.get_setting("scale_profile") or "")
+        for k, v in {"guest_slug": slug, "guest_state": "waiting", "guest_started": to_iso(now),
+                     "guest_ready_at": to_iso(now + timedelta(seconds=GUEST_READY_SECONDS if RESTART_BSS else 0)),
+                     "guest_expires": to_iso(now + timedelta(minutes=GUEST_MINUTES))}.items():
+            self.set_setting(k, v)
+        for k in ("guest_mid", "guest_reason"):
+            self.set_setting(k, None)
+        self.set_setting("scale_profile", slug)
+        sync = self.sync_scale()
+        if RESTART_BSS:
+            restart_bss()
+        t = threading.Timer(GUEST_MINUTES * 60 + 2, self.guest_status)  # runs the expiry check
+        t.daemon = True
+        t.start()
+        log.info("Guest weigh-in started for %s (%s)", name, slug)
+        return {**self.guest_status(), "sync": sync}
+
+    def _restore_scale_profile(self):
+        prev = self.get_setting("guest_prev")
+        self.set_setting("scale_profile", prev or None)
+        self.set_setting("guest_prev", None)
+        self.sync_scale()
+
+    def cancel_guest(self, reason: str = "cancelled", restart: bool = True) -> dict:
+        if self.get_setting("guest_state") != "waiting":
+            return self.guest_status()
+        self.set_setting("guest_state", "cancelled")
+        self.set_setting("guest_reason", reason)
+        self._restore_scale_profile()
+        if restart and RESTART_BSS:
+            restart_bss()  # drop the guest profile from a scan that is already running
+        log.info("Guest weigh-in %s", reason)
+        return self.guest_status()
+
+    def _clear_guest(self):
+        for k in ("guest_slug", "guest_state", "guest_started", "guest_ready_at", "guest_expires",
+                  "guest_mid", "guest_reason"):
+            self.set_setting(k, None)
+
+    def close_guest(self) -> dict:
+        """The guest has seen their report (or gave up): back to normal operation."""
+        if self.get_setting("guest_state") == "waiting":
+            self.cancel_guest()
+        self._drop_empty_guest(self.get_setting("guest_slug"))
+        self._clear_guest()
+        return {"state": None}
+
+    def _drop_empty_guest(self, slug: str | None):
+        """A guest profile without a weigh-in has nothing worth keeping."""
+        with self.lock:
+            if slug and not self.conn.execute("SELECT 1 FROM measurements WHERE profile=?", (slug,)).fetchone():
+                self.conn.execute("DELETE FROM profiles WHERE slug=? AND is_guest=1", (slug,))
+                self.conn.commit()
 
     # --- auto-assignment ---------------------------------------------------
     # Each person's reference weight is the median of their trusted readings nearest in
@@ -770,13 +925,14 @@ class Store:
         return (best if conf >= MIN_CONFIDENCE else None), best, conf
 
     def estimate(self, weight: float, ts: datetime, source_slug: str | None):
-        return self._estimate_with(weight, ts.timestamp(), source_slug, self._profile_map(), self._trusted_refs())
+        return self._estimate_with(weight, ts.timestamp(), source_slug, self._profile_map(guests=False),
+                                   self._trusted_refs())
 
     def reassign_auto(self):
         """Re-run the estimator over every reading nobody claimed by hand, oldest first.
         Confident matches feed later readings in the same pass."""
         with self.lock:
-            profiles = self._profile_map()
+            profiles = self._profile_map(guests=False)
             refs: dict[str, list[tuple[float, float]]] = {}
             for r in self.conn.execute(
                 "SELECT profile, ts, weight FROM measurements WHERE assign_method='manual' AND profile IS NOT NULL ORDER BY ts"
@@ -824,6 +980,9 @@ class Store:
                 "SELECT * FROM measurements WHERE ts BETWEEN ? AND ? AND ABS(weight-?) < 0.05",
                 (lo, hi, float(weight)),
             ).fetchone()
+            g_started = parse_ts(self.get_setting("guest_started")) if self.get_setting("guest_state") == "waiting" else None
+            if dup and g_started and parse_ts(dup["ts"]) < g_started:
+                dup = None  # a guest who weighs the same as the person just before them is not a repeat
             if dup:
                 # A weigh-in that carries more than the stored one (typically the
                 # scale's segment impedances after a weight-only reading of the same
@@ -840,18 +999,34 @@ class Store:
                 self.conn.commit()
                 return dup["id"], "updated", dup["profile"]
 
-            prof, guess, conf = self.estimate(float(weight), ts, user_slug) if assign else (None, None, 0.0)
+            guest = self.get_setting("guest_slug") if self.get_setting("guest_state") == "waiting" else None
+            started = parse_ts(self.get_setting("guest_started")) if guest else None
+            if guest and assign and started and ts >= started - timedelta(seconds=30):
+                # The weigh-in the guest session was waiting for.
+                prof, guess, conf, method = guest, guest, 1.0, "manual"
+            else:
+                guest = None
+                prof, guess, conf = self.estimate(float(weight), ts, user_slug) if assign else (None, None, 0.0)
+                method = "auto" if prof else "none"
             scale_for = self.get_setting("scale_profile") if ts >= utc_now() - timedelta(hours=1) else None
             cols = ["ts", "user_slug", "user_name", *METRIC_FIELDS, "raw",
                     "profile", "assign_method", "auto_profile", "confidence", "scale_for"]
             row = [to_iso(ts), user_slug, user_name, *(values[f] for f in METRIC_FIELDS), json.dumps(payload),
-                   prof, "auto" if prof else "none", guess, conf, scale_for]
+                   prof, method, guess, conf, scale_for]
             cur = self.conn.execute(
                 f"INSERT INTO measurements ({', '.join(chr(34) + c + chr(34) for c in cols)}) "
                 f"VALUES ({', '.join('?' for _ in cols)})",
                 row,
             )
             self.conn.commit()
+            if guest:
+                # Done: the guest gets their report and the scale goes back to its usual profile.
+                # No restart: ble-scale-sync waits scan_cooldown after a reading and reloads the
+                # config before its next scan, and a restart now would cut its exports short.
+                self.set_setting("guest_mid", str(cur.lastrowid))
+                self.set_setting("guest_state", "done")
+                self._restore_scale_profile()
+                log.info("Guest weigh-in done: %.2f kg (id %s)", weight, cur.lastrowid)
             return cur.lastrowid, "created", prof
 
     def claim(self, mid: int, profile: str | None, confirm: bool) -> dict:
@@ -1081,6 +1256,8 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/settings":
             return self._json(200, {"scale_profile": self.store.get_setting("scale_profile"),
                                     "sync": self.store.last_sync})
+        if path == "/api/guest":
+            return self._json(200, self.store.guest_status())
         if path == "/api/recent":
             # Latest weigh-ins from everyone, for the "who was this?" inbox.
             return self._json(200, self.store.query(None, None, limit=int(q.get("limit", 15)), order="DESC"))
@@ -1113,6 +1290,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(201 if status == "created" else 200, {"id": mid, "status": status, "profile": prof})
             if path == "/api/profiles":
                 return self._json(201, self.store.save_profile(self._body()))
+            if path == "/api/guest":
+                return self._json(200, self.store.start_guest(self._body()))
+            if path == "/api/guest/cancel":
+                return self._json(200, self.store.cancel_guest())
+            if path == "/api/guest/close":
+                return self._json(200, self.store.close_guest())
             if path == "/api/settings":
                 body = self._body()
                 if "scale_profile" in body:

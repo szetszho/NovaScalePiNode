@@ -190,6 +190,23 @@ Scale Hub reproduces both reports to within about 0.2 kg per segment, with exact
 trunk muscle. Still open: the body score (76, 79), subcutaneous fat (8.1 % both), metabolic age,
 WHR, and a woman's report.
 
+## 6c. Guest weigh-in (design)
+
+- `POST /api/guest {name, height_cm, age, sex}` creates a profile with `is_guest=1` (birth date
+  derived from age), stores the previous scale profile in `settings.guest_prev`, makes the guest
+  the scale profile (writes config.yaml), and restarts ble-scale-sync (`restart_bss`: SIGTERM to
+  this user's `ble-scale-sync` processes; systemd restarts it, RestartSec=5). Why the restart:
+  ble-scale-sync applies a config change only before its next scan, and an idle scan runs until
+  someone steps on (seen in the logs: a change made mid-scan wasn't used for the next weigh-in).
+- `insert()`: while `guest_state=waiting`, the next reading (not older than 30 s before the
+  start) goes to the guest as a manual claim, `guest_state=done`, and the previous scale profile
+  is restored **without** a restart (ble-scale-sync is in its post-reading `scan_cooldown` and
+  reloads before the next scan; a restart then would cut its exports short).
+- Cancel (`/api/guest/cancel`) or expiry (10 min) restores the profile **with** a restart.
+  `/api/guest/close` clears the session and drops a guest profile that never got a reading.
+- Guests are excluded from auto-assignment (`_profile_map(guests=False)`), the person picker,
+  claim menus and the scale-profile select. Deleting a guest profile deletes its readings.
+
 ## 7. How to test and debug
 
 - Live log: `journalctl -u ble-scale -f -a` (`-a`, or journald shows `[blob data]`).

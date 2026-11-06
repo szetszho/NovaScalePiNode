@@ -134,6 +134,22 @@ figures and impedances come through for everyone, and Scale Hub works out who it
 several users there (for example Garmin per person), weigh-ins matched to the others still get
 impedances and the model, but not the scale's own figures.
 
+### Guest weigh-in
+
+For a visitor: **Guest weigh-in** (person menu or Settings → Guests), enter height, age and sex,
+tap **Start**. Scale Hub makes a temporary guest profile the scale profile and restarts the
+Bluetooth listener so the scale gets it straight away (about 12 seconds; the app counts down,
+then says when to step on). The next weigh-in is the guest's, and the scale profile switches
+straight back. The guest sees a full report (weight, body fat, muscle per limb, standards,
+scale vs model) to print or delete; **Done** returns to normal. Guest weigh-ins never appear in
+anyone's history or matching; past reports stay under Settings → Guests until deleted. A guest
+session with no weigh-in ends by itself after 10 minutes.
+
+The restart works because Scale Hub and ble-scale-sync run as the same user: Scale Hub sends
+ble-scale-sync a SIGTERM and systemd starts it again with the new profile. Set
+`SCALE_HUB_RESTART_BSS=0` in the scale-hub service to turn that off (the guest profile then
+applies from the listener's next scan cycle, which can be too late).
+
 ## Household (multi-user, no login)
 
 Everyone shares one dashboard. Tap your name at the top to see your own numbers; the page
