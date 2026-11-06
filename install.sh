@@ -26,6 +26,23 @@ sudo usermod -aG bluetooth "$RUN_USER" || true
 # BlueZ from getting stuck after days of continuous scanning.
 sudo apt-get install -y -qq libcap2-bin >/dev/null
 sudo setcap cap_net_admin+ep "$(command -v btmgmt)" || echo "warning: could not setcap btmgmt (non-fatal)"
+# Stop bluetoothd's GAP plugin from loading the scale's "preferred connection
+# parameters" (10-12.5 ms) into the kernel. With them loaded, Linux refuses the
+# R-MSC04's own request for 30-45 ms, and the scale hangs up 5.5 s into every
+# weigh-in, before it sends body composition. Takes full effect after a reboot.
+BTD=""
+for p in /usr/libexec/bluetooth/bluetoothd /usr/lib/bluetooth/bluetoothd; do
+  [[ -x "$p" ]] && BTD="$p" && break
+done
+if [[ -n "$BTD" ]]; then
+  sudo mkdir -p /etc/systemd/system/bluetooth.service.d
+  printf '[Service]\nExecStart=\nExecStart=%s -P gap\n' "$BTD" |
+    sudo tee /etc/systemd/system/bluetooth.service.d/scale-hub.conf >/dev/null
+  sudo systemctl daemon-reload
+  sudo systemctl restart bluetooth
+else
+  echo "warning: bluetoothd not found; skipping the -P gap override"
+fi
 
 say "Checking Node.js (ble-scale-sync needs 22.x or newer)"
 node_major() { node -v 2>/dev/null | sed -E 's/^v([0-9]+).*/\1/' || echo 0; }
@@ -36,17 +53,26 @@ if [[ "$(node_major)" -lt 22 ]]; then
 fi
 echo "Node $(node -v)"
 
-say "Installing ble-scale-sync (Bluetooth reader + Garmin uploader)"
-sudo npm install -g ble-scale-sync@latest --no-fund --no-audit
-BSS_BIN="$(command -v ble-scale-sync)"
-
+say "Installing ble-scale-sync from GitHub (Bluetooth reader + Garmin uploader)"
+# ble-scale-sync is not on the npm registry (npm install returns 404), so build it from source.
+sudo apt-get install -y -qq git build-essential >/dev/null
 mkdir -p "$BSS_DIR"
+SRC_DIR="$BSS_DIR/src"
+if [[ -d "$SRC_DIR/.git" ]]; then
+  git -C "$SRC_DIR" checkout -q -- .   # drop any local changes (an older install patched it)
+  git -C "$SRC_DIR" pull --ff-only -q
+else
+  git clone -q --depth 1 https://github.com/KristianP26/ble-scale-sync.git "$SRC_DIR"
+fi
+(cd "$SRC_DIR" && npm ci --no-fund --no-audit && npm run build)
+sudo npm install -g "$SRC_DIR" --no-fund --no-audit
+BSS_BIN="$(command -v ble-scale-sync)"
 if [[ ! -d "$BSS_DIR/venv" ]]; then
   say "Creating Python venv for the Garmin uploader"
   python3 -m venv "$BSS_DIR/venv"
 fi
 "$BSS_DIR/venv/bin/pip" install -q --upgrade pip
-"$BSS_DIR/venv/bin/pip" install -q -r "$(npm root -g)/ble-scale-sync/requirements.txt"
+"$BSS_DIR/venv/bin/pip" install -q -r "$SRC_DIR/requirements.txt"
 
 say "Setting up the shared ingest key"
 ENV_FILE="$BSS_DIR/.env"
@@ -100,6 +126,8 @@ Next steps:
   uncomment the garmin block in config.yaml, then run:
        cd $BSS_DIR && ble-scale-sync setup-garmin --all-users
        sudo systemctl restart ble-scale
+
+  Reboot once after the first install (sudo reboot) so the Bluetooth fix takes effect.
 
   Close the Renpho app on your phone (or turn off phone Bluetooth) while testing:
   the scale talks to only one device at a time.

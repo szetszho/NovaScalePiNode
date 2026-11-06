@@ -30,7 +30,8 @@ Copy this folder to the Pi (for example to `~/scale-hub`), then run:
 cd ~/scale-hub && chmod +x install.sh && ./install.sh
 ```
 
-Then follow the steps it prints:
+Then reboot once (`sudo reboot`) so the Bluetooth fix below takes effect, and follow the
+steps it prints:
 
 1. `nano ~/ble-scale-sync/config.yaml` and set your name, height, birth date, gender and
    weight range.
@@ -56,12 +57,17 @@ Strava, Intervals.icu, Home Assistant (MQTT), InfluxDB and others work the same 
 
 ## Body composition
 
-Each weigh-in's body composition comes from the best source available, and the note under
-the chart says which one was used:
+Every weigh-in keeps **both** the scale's own analysis and Scale Hub's model, side by side
+(Body tab), and each person chooses which one their cards and charts show first
+(*Show first* in their profile). The **Body tab** has a body map (muscle and fat per limb with % of standard and Low / Standard / High
+like the Renpho app report, left/right lean balance, or lean change against about 30 days ago),
+whole-body values against Renpho's standard ranges, the fat / muscle / other-lean split for each source,
+and a scale-vs-model table. Why the two can differ by 10 points or more:
+[docs/rmsc04-notes.md](docs/rmsc04-notes.md#5-why-the-scale-and-the-model-disagree-so-much).
 
-1. **The scale's own analysis.** This needs `ble.rmsc04_profile_byte` (see below) and only
-   applies to the one person it was captured for.
-2. **Calculated from the scale's segment impedance (default).** When you stand barefoot,
+1. **The scale's own analysis (Renpho).** The numbers the Renpho app shows, for the person set
+   as the **scale profile** (see below). It follows height, weight and impedance, not sex or age.
+2. **Scale Hub's model, from the scale's segment impedance.** When you stand barefoot,
    hold the handle and stay on until the display shows results, the Nova sends ten raw
    impedances: trunk, both arms and both legs, at 20 and 100 kHz. Scale Hub turns them into:
    - **Whole-body impedance at 50 kHz:** arm + trunk + leg averaged over both sides, with
@@ -111,13 +117,38 @@ validated in Japanese or Korean adults, and the 2.45 kg is an average offset. Fo
 backgrounds (Indian, Pakistani and others), body fat at a given BMI is higher still, and no
 equation here was built for them.
 
-### The scale's own body fat (`rmsc04_profile_byte`)
+### Scale profile (Settings tab)
 
-To use the scale's own body fat, skeletal muscle and visceral fat for one person, set
-`ble.rmsc04_profile_byte` in `~/ble-scale-sync/config.yaml`. The byte comes from one Android
-Bluetooth HCI log of the Renpho app. Steps:
-<https://blescalesync.dev/guide/scales/renpho#own-body-fat>. That person's user in
-`config.yaml` needs the same slug as their Scale Hub profile.
+At the start of each weigh-in ble-scale-sync sends the scale one profile, and the scale computes
+its own analysis for it, before anyone knows who is on the scale. In **Settings → Scale profile**
+pick that person. Scale Hub then writes their name, height, birth date, sex, athlete flag and last
+weight into the first user of `~/ble-scale-sync/config.yaml`, plus `ble.rmsc04_profile_byte`
+worked out from sex and age (`0x80` for male + age in years). It re-checks every 6 hours, so the
+byte follows birthdays. ble-scale-sync reloads the file before its next scan. Comments, exporters
+and other users in the file are left as they are, and so is the user's slug (Garmin keeps its
+login per slug).
+
+The scale's figures are shown for the scale profile only; everyone else gets the model. Keep
+**one user** in `config.yaml` for this: every weigh-in is then matched to it, so the scale's
+figures and impedances come through for everyone, and Scale Hub works out who it was. With
+several users there (for example Garmin per person), weigh-ins matched to the others still get
+impedances and the model, but not the scale's own figures.
+
+### Guest weigh-in
+
+For a visitor: **Guest weigh-in** (person menu or Settings → Guests), enter height, age and sex,
+tap **Start**. Scale Hub makes a temporary guest profile the scale profile and restarts the
+Bluetooth listener so the scale gets it straight away (about 12 seconds; the app counts down,
+then says when to step on). The next weigh-in is the guest's, and the scale profile switches
+straight back. The guest sees a full report (weight, body fat, muscle per limb, standards,
+scale vs model) to print or delete; **Done** returns to normal. Guest weigh-ins never appear in
+anyone's history or matching; past reports stay under Settings → Guests until deleted. A guest
+session with no weigh-in ends by itself after 10 minutes.
+
+The restart works because Scale Hub and ble-scale-sync run as the same user: Scale Hub sends
+ble-scale-sync a SIGTERM and systemd starts it again with the new profile. Set
+`SCALE_HUB_RESTART_BSS=0` in the scale-hub service to turn that off (the guest profile then
+applies from the listener's next scan cycle, which can be too late).
 
 ## Household (multi-user, no login)
 
@@ -171,24 +202,38 @@ exporter ([multi-user guide](https://blescalesync.dev/multi-user)).
 | POST | `/api/measurements/<id>/release` | Back to automatic matching |
 | GET | `/api/export.csv?days=all&profile=dad` | CSV download |
 | DELETE | `/api/measurements/<id>` | Delete a reading |
+| POST | `/api/measurements/delete` | `{"ids": [1, 2, 3]}`: delete several readings (History tab: tick rows or "Date" for all in range, then **Delete selected**) |
 
 There's no login: anyone on your network can claim or edit. Only `/api/ingest` needs the key, so
 nothing else can inject readings. A repeat of the same reading (same weight within 2 minutes) is
-ignored, so webhook retries and re-imports never create duplicates.
+ignored, so webhook retries and re-imports never create duplicates. If the repeat carries more
+measurements (for example the scale's segment impedances after a weight-only reading), it
+replaces the stored one.
 
 ## Maintenance
 
 ```bash
 systemctl status scale-hub ble-scale        # are both running?
 journalctl -u ble-scale -f                  # live Bluetooth log
-sudo npm install -g ble-scale-sync@latest && sudo systemctl restart ble-scale   # update
+./install.sh && sudo systemctl restart ble-scale   # update (pulls and rebuilds ble-scale-sync)
 cp ~/scale-hub/data/scale.db ~/scale-backup-$(date +%F).db                       # backup
 python3 ~/scale-hub/server.py --import-jsonl ~/ble-scale-sync/measurements.jsonl # rebuild DB from backup
 ```
 
 Troubleshooting for the Bluetooth side: <https://blescalesync.dev/troubleshooting>.
-If the Nova drops the connection early, the weight is still saved but body composition is
-missing for that weigh-in. Moving the Pi closer helps.
+**The Nova hangs up about 5.5 s after connecting** (weight only, no body composition) when
+Linux refuses its request for a 30-45 ms connection interval. That happens once bluetoothd's
+GAP plugin has loaded the scale's advertised preference (10-12.5 ms). `install.sh` runs
+bluetoothd with `-P gap` to prevent it (`/etc/systemd/system/bluetooth.service.d/scale-hub.conf`).
+If it still happens, clear what is stored for the scale and reboot:
+
+```bash
+sudo rm -rf /var/lib/bluetooth/*/<SCALE-MAC> /var/lib/bluetooth/*/cache/<SCALE-MAC>
+sudo reboot
+```
+
+Check with `sudo btmon`: a working session shows `LE Remote Connection Parameter Request Reply`
+and `LE Connection Update Complete` with a 45 ms interval, not a `Negative Reply`.
 
 ## Remote access (outside your home)
 
