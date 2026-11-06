@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scale Hub</title>
+<meta name="theme-color" content="#0f766e">
+<style>
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --ink: #14181f; --muted: #667085; --line: #e4e7ec;
+  --accent: #0f766e; --up: #b42318; --down: #027a48; --grid: #eef0f3; --warn-bg: #fff7e6; --warn: #b45309;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #0d1117; --card: #161b22; --ink: #e6edf3; --muted: #8b949e; --line: #262c36;
+          --up: #f97066; --down: #4ade80; --grid: #20262f; --warn-bg: #2a2111; --warn: #fbbf24; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+       font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+.wrap { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+header { padding: 16px 0 4px; }
+.top { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+h1 { font-size: 20px; margin: 0; letter-spacing: -0.01em; }
+h1 small { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 8px; }
+.controls { display: flex; gap: 8px; flex-wrap: wrap; }
+select, button, input { font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--line);
+                        border-radius: 8px; padding: 6px 10px; }
+button { cursor: pointer; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.ghost { background: transparent; }
+button.danger { color: var(--up); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; }
+.seg button.on { background: var(--accent); color: #fff; }
+
+/* profile picker */
+.people { display: flex; gap: 8px; overflow-x: auto; padding: 12px 0 8px; scrollbar-width: none; }
+.person { display: flex; align-items: center; gap: 8px; padding: 5px 12px 5px 5px; border-radius: 999px;
+          border: 1px solid var(--line); background: var(--card); white-space: nowrap; flex: none; }
+.person.on { border-color: var(--pc); box-shadow: 0 0 0 1px var(--pc); font-weight: 600; }
+.avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--pc); color: #fff; display: grid;
+          place-items: center; font-size: 13px; font-weight: 700; flex: none; }
+.avatar.sm { width: 20px; height: 20px; font-size: 11px; }
+.person .edit { color: var(--muted); font-size: 13px; padding: 0 0 0 2px; border: 0; background: none; }
+.person.add { padding: 5px 12px; color: var(--muted); border-style: dashed; }
+
+main { padding-bottom: 40px; }
+.panel { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 16px; }
+.panel h2 { font-size: 15px; margin: 0 0 8px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.muted { color: var(--muted); font-weight: 400; font-size: 13px; }
+.inbox.attn { border-color: var(--warn); background: var(--warn-bg); }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin: 4px 0 16px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; cursor: pointer; }
+.card.on { outline: 2px solid var(--pc, var(--accent)); outline-offset: -1px; }
+.card .k { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+.card .v { font-size: 24px; font-weight: 650; font-variant-numeric: tabular-nums; margin-top: 2px; }
+.card .v span { font-size: 13px; color: var(--muted); font-weight: 400; margin-left: 3px; }
+.card .d { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--muted); }
+.d .up { color: var(--up); } .d .down { color: var(--down); }
+@media (max-width: 520px) { .cards { grid-template-columns: repeat(2, 1fr); gap: 8px; } .card { padding: 10px 12px; } .card .v { font-size: 21px; } }
+
+#chart { width: 100%; height: 280px; display: block; }
+#chart text { fill: var(--muted); font-size: 11px; }
+.tip { position: fixed; pointer-events: none; background: var(--ink); color: var(--bg); padding: 6px 8px;
+       border-radius: 6px; font-size: 12px; display: none; white-space: nowrap; z-index: 10; }
+.segments { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.segments div { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-variant-numeric: tabular-nums; }
+.segments b { display: block; font-size: 12px; color: var(--muted); font-weight: 500; }
+
+/* weigh-in rows (inbox + history) */
+.wi { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; align-items: center; padding: 9px 0; border-top: 1px solid var(--line); }
+.wi:first-of-type { border-top: 0; }
+.wi .when { font-size: 13px; color: var(--muted); }
+.wi .w { font-weight: 650; font-variant-numeric: tabular-nums; font-size: 17px; margin-right: 8px; }
+.who { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.badge { font-size: 11px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.badge.unclaimed { border-color: var(--warn); color: var(--warn); }
+.acts { display: flex; gap: 6px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
+.acts select { padding: 5px 6px; font-size: 13px; max-width: 150px; }
+.acts button { padding: 5px 10px; font-size: 13px; }
+@media (max-width: 560px) { .wi { grid-template-columns: 1fr; } .acts { justify-content: flex-start; } }
+
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: 13px; }
+th, td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th { color: var(--muted); font-weight: 500; }
+td select { padding: 2px 4px; font-size: 12px; }
+.empty { text-align: center; padding: 40px 16px; color: var(--muted); }
+.empty b { color: var(--ink); }
+a { color: var(--accent); }
+
+dialog { border: 1px solid var(--line); border-radius: 14px; background: var(--card); color: var(--ink);
+         padding: 18px; width: min(420px, calc(100vw - 32px)); }
+dialog::backdrop { background: #0006; }
+dialog h3 { margin: 0 0 12px; }
+.form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.form label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.form label.full { grid-column: 1 / -1; }
+.form input, .form select { width: 100%; color: var(--ink); }
+.form .check { display: flex; align-items: center; gap: 8px; grid-column: 1 / -1; }
+.form .check input { width: auto; }
+.swatches { display: flex; gap: 6px; flex-wrap: wrap; }
+.swatches button { width: 26px; height: 26px; border-radius: 50%; padding: 0; border: 2px solid transparent; }
+.swatches button.on { border-color: var(--ink); }
+.dlg-acts { display: flex; justify-content: space-between; gap: 8px; margin-top: 16px; }
+.hint { font-size: 12px; color: var(--muted); grid-column: 1 / -1; margin: -4px 0 0; }
+.err { color: var(--up); font-size: 13px; min-height: 1em; margin-top: 8px; }
+</style>
+</head>
+<body>
+<header class="wrap">
+  <div class="top">
+    <h1>Scale Hub <small id="status">loading…</small></h1>
+    <div class="controls">
+      <div class="seg" id="range" role="group" aria-label="Range">
+        <button data-d="7">7d</button><button data-d="30">30d</button><button data-d="90">90d</button>
+        <button data-d="365">1y</button><button data-d="all">All</button>
+      </div>
+      <select id="unit" aria-label="Unit"><option value="kg">kg</option><option value="lb">lb</option></select>
+    </div>
+  </div>
+  <nav class="people" id="people" aria-label="Who is looking"></nav>
+</header>
+<main class="wrap"><div id="app"></div></main>
+<div class="tip" id="tip"></div>
+
+<dialog id="dlg">
+  <form method="dialog" id="pform">
+    <h3 id="dlg-title">Add person</h3>
+    <div class="form">
+      <label class="full">Name<input name="name" required maxlength="40" autocomplete="off"></label>
+      <div class="full"><div class="muted" style="margin-bottom:4px">Colour</div><div class="swatches" id="swatches"></div></div>
+      <label>Height (cm)<input name="height_cm" type="number" step="0.5" min="50" max="250" inputmode="decimal"></label>
+      <label>Birth date<input name="birth_date" type="date"></label>
+      <label>Sex<select name="sex"><option value="">–</option><option value="male">Male</option><option value="female">Female</option></select></label>
+      <label>Usual weight (kg)<input name="start_weight" type="number" step="0.1" min="2" max="400" inputmode="decimal"></label>
+      <p class="hint">Usual weight lets new weigh-ins be matched to this person before they have any history. Height, birth date and sex are needed for BMI and body-fat estimates.</p>
+      <label class="check"><input type="checkbox" name="athlete"> Athlete (trains 8+ hours a week)</label>
+    </div>
+    <div class="err" id="perr"></div>
+    <div class="dlg-acts">
+      <button type="button" class="ghost danger" id="pdelete">Delete</button>
+      <span style="display:flex;gap:8px;margin-left:auto">
+        <button type="button" class="ghost" id="pcancel">Cancel</button>
+        <button type="submit" class="primary">Save</button>
+      </span>
+    </div>
+  </form>
+</dialog>
+
+<script>
+const METRICS = [
+  { key: "weight", label: "Weight", unit: "mass", dp: 1, lowerIsGood: true },
+  { key: "bodyFatPercent", label: "Body fat", unit: "%", dp: 1, lowerIsGood: true },
+  { key: "muscleMass", label: "Muscle", unit: "mass", dp: 1, lowerIsGood: false },
+  { key: "skeletalMusclePercent", label: "Skeletal muscle", unit: "%", dp: 1, lowerIsGood: false },
+  { key: "waterPercent", label: "Water", unit: "%", dp: 1, lowerIsGood: false },
+  { key: "visceralFat", label: "Visceral fat", unit: "", dp: 0, lowerIsGood: true },
+  { key: "boneMass", label: "Bone", unit: "mass", dp: 1, lowerIsGood: false },
+  { key: "bmi", label: "BMI", unit: "", dp: 1, lowerIsGood: true },
+  { key: "bmr", label: "BMR", unit: "kcal", dp: 0, lowerIsGood: false },
+  { key: "metabolicAge", label: "Metabolic age", unit: "yr", dp: 0, lowerIsGood: true },
+];
+const SEGMENTS = ["Trunk", "LeftArm", "RightArm", "LeftLeg", "RightLeg"];
+const PALETTE = ["#0f766e", "#7c3aed", "#c2410c", "#2563eb", "#be185d", "#4d7c0f", "#b45309", "#0e7490"];
+
+const state = {
+  days: localGet("days", "90"), unit: localGet("unit", "kg"),
+  me: localGet("me", ""), metric: localGet("metric", "weight"),
+  profiles: [], rows: [], all: [], recent: [], unclaimed: [],
+};
+
+function localGet(k, d) { try { return localStorage.getItem("sh." + k) ?? d; } catch { return d; } }
+function localSet(k, v) { try { localStorage.setItem("sh." + k, v); } catch {} }
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const api = (path, opts = {}) => fetch(path, { headers: { "Content-Type": "application/json" }, ...opts });
+const getJSON = (path) => api(path).then((r) => r.json());
+
+function conv(m, v) { return m.unit === "mass" && state.unit === "lb" ? v * 2.20462 : v; }
+function unitLabel(m) { return m.unit === "mass" ? state.unit : m.unit; }
+function fmt(m, v) { return v == null ? "–" : conv(m, v).toFixed(m.dp); }
+function fmtW(kg) { return (state.unit === "lb" ? kg * 2.20462 : kg).toFixed(1) + " " + state.unit; }
+function dateLabel(iso, withTime) {
+  const d = new Date(iso);
+  return withTime ? d.toLocaleString([], { dateStyle: "medium", timeStyle: "short" })
+                  : d.toLocaleDateString([], { month: "short", day: "numeric" });
+}
+function relTime(iso) {
+  const s = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (s < 90) return "just now";
+  if (s < 3600) return Math.round(s / 60) + " min ago";
+  if (s < 86400) return Math.round(s / 3600) + " h ago";
+  if (s < 7 * 86400) return new Date(iso).toLocaleDateString([], { weekday: "short" }) + " " + new Date(iso).toLocaleTimeString([], { timeStyle: "short" });
+  return new Date(iso).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+const prof = (slug) => state.profiles.find((p) => p.slug === slug);
+const nameOf = (slug) => prof(slug)?.name ?? slug;
+function avatar(p, sm) { return `<span class="avatar ${sm ? "sm" : ""}" style="--pc:${p.color}">${esc((p.name || "?")[0].toUpperCase())}</span>`; }
+
+// ---------- data ----------
+async function load() {
+  state.profiles = await getJSON("/api/profiles");
+  if (state.me && !prof(state.me)) state.me = "";
+  if (!state.me && state.profiles.length) state.me = state.profiles[0].slug;
+  const [recent, unclaimed] = await Promise.all([
+    getJSON("/api/recent?limit=8"),
+    getJSON("/api/measurements?profile=_unassigned&days=30"),
+  ]);
+  state.recent = recent; state.unclaimed = unclaimed.reverse();
+  if (state.me) {
+    const q = (days) => `/api/measurements?days=${days}&profile=${encodeURIComponent(state.me)}`;
+    state.rows = await getJSON(q(state.days));
+    state.all = state.days === "all" ? state.rows : await getJSON(q("all"));
+  } else { state.rows = []; state.all = []; }
+  render();
+}
+
+// ---------- claiming ----------
+async function claim(id, target) {
+  const body = { profile: target || null };
+  let res = await api(`/api/measurements/${id}/claim`, { method: "POST", body: JSON.stringify(body) });
+  if (res.status === 409) {
+    const info = await res.json();
+    const by = info.claimed_by ? nameOf(info.claimed_by) : "Guest";
+    const to = target ? nameOf(target) : "Guest";
+    const when = info.claimed_at ? " on " + dateLabel(info.claimed_at, true) : "";
+    if (!confirm(`This weigh-in was already claimed by ${by}${when}.\n\nMove it to ${to}?`)) return;
+    res = await api(`/api/measurements/${id}/claim`, { method: "POST", body: JSON.stringify({ ...body, confirm: true }) });
+  }
+  if (!res.ok) alert("Could not save: " + ((await res.json().catch(() => ({}))).error || res.status));
+  load();
+}
+async function release(id) {
+  await api(`/api/measurements/${id}/release`, { method: "POST" });
+  load();
+}
+
+function whoHtml(r) {
+  if (r.profile) {
+    const p = prof(r.profile);
+    const tag = r.assign_method === "manual" ? "claimed" : `auto ${Math.round((r.confidence ?? 0) * 100)}%`;
+    return `<span class="who">${p ? avatar(p, true) : ""}${esc(nameOf(r.profile))} <span class="badge">${tag}</span></span>`;
+  }
+  if (r.assign_method === "manual") return `<span class="who"><span class="badge">guest</span></span>`;
+  const guess = r.auto_profile && prof(r.auto_profile) ? ` · maybe ${esc(nameOf(r.auto_profile))}?` : "";
+  return `<span class="who"><span class="badge unclaimed">unclaimed</span><span class="muted">${guess}</span></span>`;
+}
+
+function assignSelect(r, compact) {
+  const opts = state.profiles.filter((p) => p.slug !== r.profile)
+    .map((p) => `<option value="${esc(p.slug)}">${esc(p.name)}</option>`).join("");
+  const guest = r.assign_method === "manual" && !r.profile ? "" : `<option value="_guest">Guest / not us</option>`;
+  const back = r.assign_method === "manual" ? `<option value="_auto">Back to automatic</option>` : "";
+  return `<select data-assign="${r.id}" aria-label="Assign weigh-in">
+    <option value="">${compact ? "Move…" : "Someone else…"}</option>${opts}${guest}${back}</select>`;
+}
+
+function weighInRow(r) {
+  const mine = state.me && r.profile === state.me;
+  const settled = r.profile && (r.assign_method === "manual" || (r.confidence ?? 0) >= 0.6);
+  const meBtn = state.me && !mine ? `<button class="${settled ? "" : "primary"}" data-claim="${r.id}">That's me</button>` : "";
+  return `<div class="wi">
+    <div><span class="w">${fmtW(r.weight)}</span><span class="when">${esc(relTime(r.ts))}</span><div>${whoHtml(r)}</div></div>
+    <div class="acts">${meBtn}${assignSelect(r)}</div></div>`;
+}
+
+// ---------- rendering ----------
+function renderPeople() {
+  $("#people").innerHTML = state.profiles.map((p) => `
+    <button class="person ${p.slug === state.me ? "on" : ""}" style="--pc:${p.color}" data-me="${esc(p.slug)}">
+      ${avatar(p)}${esc(p.name)}${p.slug === state.me ? `<span class="edit" data-edit="${esc(p.slug)}" title="Edit profile">✎</span>` : ""}
+    </button>`).join("") + `<button class="person add" data-add>+ Add person</button>`;
+}
+
+function lastWith(key) {
+  for (let i = state.all.length - 1; i >= 0; i--) if (state.all[i][key] != null) return state.all[i];
+  return null;
+}
+function deltaVs(m, daysAgo) {
+  const last = lastWith(m.key);
+  if (!last) return null;
+  const cutoff = new Date(last.ts).getTime() - daysAgo * 864e5;
+  let ref = null;
+  for (const r of state.all) { if (new Date(r.ts).getTime() <= cutoff && r[m.key] != null) ref = r; }
+  return ref ? last[m.key] - ref[m.key] : null;
+}
+function deltaHtml(m, d, tag) {
+  if (d == null) return "";
+  const v = conv(m, d), good = m.lowerIsGood ? v < 0 : v > 0;
+  const cls = Math.abs(v) < Math.pow(10, -m.dp) / 2 ? "" : good ? "down" : "up";
+  return `<span class="${cls}">${v > 0 ? "+" : ""}${v.toFixed(m.dp)}</span> ${tag}`;
+}
+
+function render() {
+  renderPeople();
+  const app = $("#app");
+  const latest = state.recent[0];
+  $("#status").textContent = latest ? `last weigh-in ${relTime(latest.ts)}` : "no data yet";
+
+  if (!state.profiles.length) {
+    app.innerHTML = `<div class="panel empty"><p><b>Who uses this scale?</b></p>
+      <p>Add a profile for each person. No login: everyone picks their name at the top of the page.
+      Weigh-ins are matched to people automatically by weight, and anyone can claim a weigh-in that's theirs.</p>
+      <p><button class="primary" data-add>+ Add the first person</button></p>
+      ${state.recent.length ? `<p class="muted">${state.recent.length >= 8 ? "8+" : state.recent.length} weigh-ins are waiting to be assigned.</p>` : ""}</div>`;
+    return;
+  }
+
+  const me = prof(state.me);
+  document.documentElement.style.setProperty("--pc", me.color);
+
+  // Inbox: unclaimed weigh-ins first, then the latest few from everyone.
+  const seen = new Set();
+  const inboxRows = [...state.unclaimed.slice(0, 6), ...state.recent].filter((r) => !seen.has(r.id) && seen.add(r.id)).slice(0, 8);
+  const nUn = state.unclaimed.length;
+  const inbox = inboxRows.length ? `<div class="panel inbox ${nUn ? "attn" : ""}">
+    <h2>${nUn ? `${nUn} weigh-in${nUn > 1 ? "s" : ""} need${nUn > 1 ? "" : "s"} a name` : "Recent weigh-ins"}
+      <span class="muted">Not right? Tap "That's me" or pick who it was.</span></h2>
+    ${inboxRows.map(weighInRow).join("")}</div>` : "";
+
+  if (!state.all.length) {
+    app.innerHTML = inbox + `<div class="panel empty"><p><b>No weigh-ins for ${esc(me.name)} yet.</b></p>
+      <p>Step on the scale and stay on until it shows the result. ${me.start_weight ? "" :
+      `Setting a <a href="#" data-edit="${esc(me.slug)}">usual weight</a> helps match the first weigh-in to you, or claim one above.`}</p></div>`;
+    return;
+  }
+
+  const available = METRICS.filter((m) => state.all.some((r) => r[m.key] != null));
+  if (!available.some((m) => m.key === state.metric)) state.metric = "weight";
+  const anyEstimated = state.all.some((r) => r.estimated);
+
+  const cards = available.map((m) => `
+    <div class="card ${m.key === state.metric ? "on" : ""}" data-metric="${m.key}" tabindex="0">
+      <div class="k">${m.label}</div>
+      <div class="v">${fmt(m, lastWith(m.key)?.[m.key])}<span>${unitLabel(m)}</span></div>
+      <div class="d">${[deltaHtml(m, deltaVs(m, 7), "7d"), deltaHtml(m, deltaVs(m, 30), "30d")].filter(Boolean).join(" · ") || "&nbsp;"}</div>
+    </div>`).join("");
+
+  const segSrc = lastWith("impedanceTrunk20kHz") || lastWith("impedanceLeftLeg20kHz");
+  const segRow = segSrc ? SEGMENTS.filter((s) => segSrc["impedance" + s + "20kHz"] != null || segSrc["impedance" + s + "100kHz"] != null) : [];
+  const segHtml = segRow.length ? `<div class="panel"><h2>Segment impedance <span class="muted">${dateLabel(segSrc.ts, true)} · ohm at 20 / 100 kHz</span></h2>
+    <div class="segments">${segRow.map((s) => `<div><b>${s.replace(/([A-Z])/g, " $1").trim()}</b>
+      ${segSrc["impedance" + s + "20kHz"] ?? "–"} / ${segSrc["impedance" + s + "100kHz"] ?? "–"}</div>`).join("")}</div></div>` : "";
+
+  const m = METRICS.find((x) => x.key === state.metric);
+  const tableCols = available.slice(0, 6);
+  const rowsDesc = [...state.rows].reverse();
+  const missing = [!me.height_cm && "height", !me.birth_date && "birth date", !me.sex && "sex"].filter(Boolean);
+  app.innerHTML = `
+    ${inbox}
+    <div class="cards">${cards}</div>
+    ${missing.length ? `<p class="muted">Add ${missing.join(", ")} to <a href="#" data-edit="${esc(me.slug)}">${esc(me.name)}'s profile</a> for BMI and body-fat estimates.</p>` : ""}
+    <div class="panel"><h2>${esc(me.name)} · ${m.label} <span class="muted">${state.rows.filter((r) => r[m.key] != null).length} readings · ${unitLabel(m) || "value"}</span></h2>
+      <svg id="chart" role="img" aria-label="${m.label} over time"></svg>
+      ${anyEstimated && m.key !== "weight" ? `<p class="muted" style="margin:6px 0 0">Body composition is estimated from weight, height, age and sex.</p>` : ""}</div>
+    ${segHtml}
+    <div class="panel"><h2>${esc(me.name)}'s history <a href="/api/export.csv?days=all&profile=${encodeURIComponent(state.me)}" class="muted">Download CSV</a></h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Date</th>${tableCols.map((c) => `<th>${c.label}${unitLabel(c) ? " (" + unitLabel(c) + ")" : ""}</th>`).join("")}<th>How</th><th></th></tr></thead>
+        <tbody>${rowsDesc.map((r) => `<tr><td>${dateLabel(r.ts, true)}</td>${tableCols.map((c) => `<td>${fmt(c, r[c.key])}</td>`).join("")}
+          <td><span class="badge">${r.assign_method === "manual" ? "claimed" : "auto " + Math.round((r.confidence ?? 0) * 100) + "%"}</span></td>
+          <td>${assignSelect(r, true)}</td></tr>`).join("")}</tbody>
+      </table></div></div>`;
+  drawChart(m);
+}
+
+function drawChart(m) {
+  const svg = $("#chart");
+  if (!svg) return;
+  const pts = state.rows.filter((r) => r[m.key] != null).map((r) => ({ t: new Date(r.ts).getTime(), v: conv(m, r[m.key]), r }));
+  const W = svg.clientWidth || 800, H = svg.clientHeight || 280, P = { l: 44, r: 12, t: 12, b: 26 };
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  if (!pts.length) { svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle">No ${m.label.toLowerCase()} readings in this range</text>`; return; }
+
+  let t0 = pts[0].t, t1 = pts[pts.length - 1].t;
+  if (t1 - t0 < 864e5) { t0 -= 432e5; t1 += 432e5; }
+  let v0 = Math.min(...pts.map((p) => p.v)), v1 = Math.max(...pts.map((p) => p.v));
+  const pad = Math.max((v1 - v0) * 0.15, m.unit === "%" ? 0.5 : 0.3);
+  v0 -= pad; v1 += pad;
+  const x = (t) => P.l + ((t - t0) / (t1 - t0)) * (W - P.l - P.r);
+  const y = (v) => H - P.b - ((v - v0) / (v1 - v0)) * (H - P.t - P.b);
+
+  let g = "";
+  for (let i = 0; i <= 4; i++) {
+    const v = v0 + ((v1 - v0) * i) / 4, yy = y(v);
+    g += `<line x1="${P.l}" x2="${W - P.r}" y1="${yy}" y2="${yy}" stroke="var(--grid)"/>`;
+    g += `<text x="${P.l - 6}" y="${yy + 4}" text-anchor="end">${v.toFixed(m.dp === 0 ? 0 : 1)}</text>`;
+  }
+  const ticks = Math.min(6, Math.max(2, Math.floor((W - P.l) / 110)));
+  for (let i = 0; i <= ticks; i++) {
+    const t = t0 + ((t1 - t0) * i) / ticks;
+    g += `<text x="${x(t)}" y="${H - 6}" text-anchor="${i === 0 ? "start" : i === ticks ? "end" : "middle"}">${dateLabel(new Date(t).toISOString())}</text>`;
+  }
+  // 7-reading moving average smooths day-to-day water swings.
+  const avg = pts.map((p, i) => { const s = pts.slice(Math.max(0, i - 6), i + 1); return { t: p.t, v: s.reduce((a, b) => a + b.v, 0) / s.length }; });
+  const line = (arr) => arr.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`).join("");
+  const area = line(avg) + `L${x(avg[avg.length - 1].t)},${H - P.b}L${x(avg[0].t)},${H - P.b}Z`;
+  g += `<path d="${area}" fill="var(--pc)" fill-opacity="0.12"/>`;
+  if (pts.length > 1) g += `<path d="${line(avg)}" fill="none" stroke="var(--pc)" stroke-width="2.5" stroke-linejoin="round"/>`;
+  g += pts.map((p) => `<circle cx="${x(p.t)}" cy="${y(p.v)}" r="${pts.length > 120 ? 2 : 3.5}" fill="var(--card)" stroke="var(--pc)" stroke-width="1.5" ${p.r.assign_method === "manual" ? "" : 'stroke-dasharray="2 1.5"'}/>`).join("");
+  g += `<line id="hover" y1="${P.t}" y2="${H - P.b}" stroke="var(--muted)" stroke-dasharray="3 3" visibility="hidden"/>`;
+  svg.innerHTML = g;
+
+  const tip = $("#tip"), hover = svg.querySelector("#hover");
+  svg.onpointermove = (e) => {
+    const rect = svg.getBoundingClientRect();
+    const px = ((e.clientX - rect.left) / rect.width) * W;
+    let best = 0;
+    pts.forEach((p, i) => { if (Math.abs(x(p.t) - px) < Math.abs(x(pts[best].t) - px)) best = i; });
+    const p = pts[best];
+    hover.setAttribute("x1", x(p.t)); hover.setAttribute("x2", x(p.t)); hover.setAttribute("visibility", "visible");
+    tip.style.display = "block";
+    tip.textContent = `${dateLabel(p.r.ts, true)} · ${p.v.toFixed(m.dp)} ${unitLabel(m)}`;
+    tip.style.left = Math.min(e.clientX + 12, innerWidth - tip.offsetWidth - 8) + "px";
+    tip.style.top = e.clientY - 34 + "px";
+  };
+  svg.onpointerleave = () => { tip.style.display = "none"; hover.setAttribute("visibility", "hidden"); };
+}
+
+// ---------- profile dialog ----------
+const dlg = $("#dlg"), pform = $("#pform");
+let editing = null, pickedColor = null;
+function openProfile(slug) {
+  editing = slug ? prof(slug) : null;
+  pform.reset(); $("#perr").textContent = "";
+  $("#dlg-title").innerHTML = editing ? `Edit ${esc(editing.name)} <span class="muted">ID: ${esc(editing.slug)}</span>` : "Add person";
+  $("#pdelete").style.display = editing ? "" : "none";
+  const used = new Set(state.profiles.map((p) => p.color));
+  pickedColor = editing?.color || PALETTE.find((c) => !used.has(c)) || PALETTE[0];
+  if (editing) {
+    for (const k of ["name", "height_cm", "birth_date", "sex", "start_weight"]) pform.elements[k].value = editing[k] ?? "";
+    pform.elements.athlete.checked = !!editing.athlete;
+  }
+  renderSwatches();
+  dlg.showModal();
+  if (!editing) pform.elements.name.focus();
+}
+function renderSwatches() {
+  $("#swatches").innerHTML = PALETTE.map((c) => `<button type="button" data-color="${c}" class="${c === pickedColor ? "on" : ""}" style="background:${c}" aria-label="Colour ${c}"></button>`).join("");
+}
+$("#swatches").onclick = (e) => { const b = e.target.closest("[data-color]"); if (b) { pickedColor = b.dataset.color; renderSwatches(); } };
+$("#pcancel").onclick = () => dlg.close();
+pform.onsubmit = async (e) => {
+  e.preventDefault();
+  const f = pform.elements;
+  const body = { name: f.name.value.trim(), color: pickedColor, height_cm: f.height_cm.value, birth_date: f.birth_date.value,
+                 sex: f.sex.value, start_weight: f.start_weight.value, athlete: f.athlete.checked };
+  const res = await api(editing ? `/api/profiles/${editing.slug}` : "/api/profiles", { method: "POST", body: JSON.stringify(body) });
+  const data = await res.json();
+  if (!res.ok) { $("#perr").textContent = data.error || "Could not save"; return; }
+  dlg.close();
+  if (!editing) { state.me = data.slug; localSet("me", state.me); }
+  load();
+};
+$("#pdelete").onclick = async () => {
+  if (!editing || !confirm(`Delete ${editing.name}? Their weigh-ins are kept and become unclaimed.`)) return;
+  await api(`/api/profiles/${editing.slug}`, { method: "DELETE" });
+  dlg.close();
+  if (state.me === editing.slug) { state.me = ""; localSet("me", ""); }
+  load();
+};
+
+// ---------- events ----------
+document.addEventListener("click", (e) => {
+  const t = e.target;
+  const edit = t.closest("[data-edit]");
+  if (edit) { e.preventDefault(); e.stopPropagation(); openProfile(edit.dataset.edit); return; }
+  if (t.closest("[data-add]")) { openProfile(null); return; }
+  const me = t.closest("[data-me]");
+  if (me) { state.me = me.dataset.me; localSet("me", state.me); load(); return; }
+  const cl = t.closest("[data-claim]");
+  if (cl) { claim(cl.dataset.claim, state.me); return; }
+  const card = t.closest("[data-metric]");
+  if (card) { state.metric = card.dataset.metric; localSet("metric", state.metric); render(); return; }
+  const rb = t.closest("#range button");
+  if (rb) {
+    state.days = rb.dataset.d; localSet("days", state.days);
+    document.querySelectorAll("#range button").forEach((b) => b.classList.toggle("on", b === rb));
+    load();
+  }
+});
+document.addEventListener("change", (e) => {
+  const sel = e.target.closest("[data-assign]");
+  if (!sel || !sel.value) return;
+  const id = sel.dataset.assign, v = sel.value;
+  if (v === "_auto") release(id);
+  else claim(id, v === "_guest" ? null : v);
+});
+$("#unit").onchange = (e) => { state.unit = e.target.value; localSet("unit", state.unit); render(); };
+$("#unit").value = state.unit;
+document.querySelectorAll("#range button").forEach((b) => b.classList.toggle("on", b.dataset.d === state.days));
+let resizeT; addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(render, 150); });
+setInterval(() => { if (!document.hidden && !dlg.open) load(); }, 30000);
+load().catch((err) => { $("#status").textContent = "cannot reach server"; console.error(err); });
+</script>
+</body>
+</html>

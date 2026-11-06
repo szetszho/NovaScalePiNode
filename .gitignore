@@ -1,0 +1,8 @@
+# Runtime data (SQLite database lives here on the Pi)
+data/
+*.db
+*.db-shm
+*.db-wal
+__pycache__/
+*.pyc
+.env

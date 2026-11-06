@@ -1,0 +1,20 @@
+[Unit]
+Description=BLE Scale Sync (reads the scale over Bluetooth, sends to Scale Hub / Garmin)
+After=network-online.target bluetooth.target scale-hub.service
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=@USER@
+WorkingDirectory=@BSS_DIR@
+EnvironmentFile=-@BSS_DIR@/.env
+Environment="CONTINUOUS_MODE=true"
+# venv first so the Garmin uploader finds its Python packages
+Environment="PATH=@BSS_DIR@/venv/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=@BSS_BIN@
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

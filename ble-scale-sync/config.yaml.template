@@ -1,0 +1,59 @@
+# ble-scale-sync config for a Renpho MorphoScan Nova (R-MSC04) + Scale Hub.
+# install.sh copies this to ~/ble-scale-sync/config.yaml. Edit the values
+# marked EDIT, then check it with:  cd ~/ble-scale-sync && ble-scale-sync validate
+version: 1
+
+# Optional: pin to your scale once you know its address (ble-scale-sync scan).
+# ble:
+#   scale_mac: "AA:BB:CC:DD:EE:FF"
+#   # The scale's own body fat instead of the BMI estimate (experimental).
+#   # How to find the byte: https://blescalesync.dev/guide/scales/renpho#own-body-fat
+#   rmsc04_profile_byte: "5a"
+
+scale:
+  weight_unit: kg   # kg | lbs (display only; data is always stored in kg)
+  height_unit: cm   # cm | in
+
+unknown_user: nearest
+
+# One user is enough: Scale Hub works out who stepped on the scale and handles the
+# household. Give this user the same slug as their Scale Hub profile (shown as "ID" when
+# you edit the profile; "Dad" becomes "dad") so their readings keep these body composition values. For Garmin
+# per person, add each person with their own weight_range and garmin exporter.
+users:
+  - name: Me                              # EDIT
+    slug: me                              # EDIT (lowercase, no spaces; match the Scale Hub profile)
+    height: 175                           # EDIT (in height_unit)
+    birth_date: "1990-01-01"              # EDIT
+    gender: male                          # EDIT: male | female
+    is_athlete: false
+    weight_range: { min: 50, max: 120 }   # EDIT: kg; set ranges per person for multi-user
+    last_known_weight: null
+
+global_exporters:
+  # Scale Hub dashboard on this Pi. install.sh fills in the key.
+  - type: webhook
+    url: "http://127.0.0.1:8080/api/ingest"
+    headers:
+      X-Api-Key: "${SCALE_HUB_TOKEN}"
+
+  # Local backup of every reading (re-import with: server.py --import-jsonl).
+  - type: file
+    file_path: "./measurements.jsonl"
+    format: jsonl
+
+  # Garmin Connect: put GARMIN_EMAIL / GARMIN_PASSWORD in ~/ble-scale-sync/.env,
+  # uncomment, then run:  ble-scale-sync setup-garmin --all-users
+  # - type: garmin
+  #   email: "${GARMIN_EMAIL}"
+  #   password: "${GARMIN_PASSWORD}"
+  #   token_dir: ./garmin-tokens
+
+runtime:
+  continuous_mode: true
+  # The Nova keeps advertising right after a weigh-in; wait before scanning again.
+  scan_cooldown: 60
+  retry_failed_exports: true
+  debug: false
+
+update_check: true
