@@ -148,8 +148,9 @@ connections (0x11 to 0x15 in this session).
   `gender` and `birth_date` instead of sniffed.
 - **The scale's own body fat did not follow the byte.** With near-identical impedances, slot 01
   gave 11.3 % (male 30), 11.2 % (female 32) and 11.5 % (female 30); skeletal muscle 50.3–50.6 %,
-  visceral 1 every time. Only height moved it (15.6 % with 175 cm). Worth knowing before
-  trusting the record's fat as "the scale's own" figure.
+  visceral 1 every time, and the Renpho app showed those same figures. Only height moved it
+  (15.6 % with 175 cm). So the app displays the scale's on-board result, and that result doesn't
+  depend on sex or age.
 - The app wrote b2 at connect and again after the 0x25 record. In one capture it also wrote b2
   after 0x24, in the other it didn't, so that write isn't required.
 - **0x25 byte [32] is the slot the record was computed for**: `01` in the app's session, `09` in
