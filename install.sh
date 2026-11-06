@@ -26,6 +26,23 @@ sudo usermod -aG bluetooth "$RUN_USER" || true
 # BlueZ from getting stuck after days of continuous scanning.
 sudo apt-get install -y -qq libcap2-bin >/dev/null
 sudo setcap cap_net_admin+ep "$(command -v btmgmt)" || echo "warning: could not setcap btmgmt (non-fatal)"
+# Stop bluetoothd's GAP plugin from loading the scale's "preferred connection
+# parameters" (10-12.5 ms) into the kernel. With them loaded, Linux refuses the
+# R-MSC04's own request for 30-45 ms, and the scale hangs up 5.5 s into every
+# weigh-in, before it sends body composition. Takes full effect after a reboot.
+BTD=""
+for p in /usr/libexec/bluetooth/bluetoothd /usr/lib/bluetooth/bluetoothd; do
+  [[ -x "$p" ]] && BTD="$p" && break
+done
+if [[ -n "$BTD" ]]; then
+  sudo mkdir -p /etc/systemd/system/bluetooth.service.d
+  printf '[Service]\nExecStart=\nExecStart=%s -P gap\n' "$BTD" |
+    sudo tee /etc/systemd/system/bluetooth.service.d/scale-hub.conf >/dev/null
+  sudo systemctl daemon-reload
+  sudo systemctl restart bluetooth
+else
+  echo "warning: bluetoothd not found; skipping the -P gap override"
+fi
 
 say "Checking Node.js (ble-scale-sync needs 22.x or newer)"
 node_major() { node -v 2>/dev/null | sed -E 's/^v([0-9]+).*/\1/' || echo 0; }
@@ -119,6 +136,8 @@ Next steps:
   uncomment the garmin block in config.yaml, then run:
        cd $BSS_DIR && ble-scale-sync setup-garmin --all-users
        sudo systemctl restart ble-scale
+
+  Reboot once after the first install (sudo reboot) so the Bluetooth fix takes effect.
 
   Close the Renpho app on your phone (or turn off phone Bluetooth) while testing:
   the scale talks to only one device at a time.
