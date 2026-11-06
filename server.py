@@ -501,7 +501,7 @@ class Store:
 
     # --- measurements ------------------------------------------------------
     def insert(self, payload: dict, assign: bool = True) -> tuple[int, str, str | None]:
-        """Store one reading. Returns (id, 'created'|'duplicate', assigned profile).
+        """Store one reading. Returns (id, 'created'|'updated'|'duplicate', assigned profile).
         assign=False skips the estimate (bulk import runs reassign_auto once at the end)."""
         weight = payload.get("weight")
         if not isinstance(weight, (int, float)) or isinstance(weight, bool) or not (1 <= weight <= 400):
@@ -520,11 +520,24 @@ class Store:
             lo = to_iso(ts - timedelta(seconds=DUPLICATE_WINDOW_SECONDS))
             hi = to_iso(ts + timedelta(seconds=DUPLICATE_WINDOW_SECONDS))
             dup = self.conn.execute(
-                "SELECT id, profile FROM measurements WHERE ts BETWEEN ? AND ? AND ABS(weight-?) < 0.05",
+                "SELECT * FROM measurements WHERE ts BETWEEN ? AND ? AND ABS(weight-?) < 0.05",
                 (lo, hi, float(weight)),
             ).fetchone()
             if dup:
-                return dup["id"], "duplicate", dup["profile"]
+                # A weigh-in that carries more than the stored one (typically the
+                # scale's segment impedances after a weight-only reading of the same
+                # weight, e.g. two weigh-ins in a row) replaces its measurements.
+                have = sum(dup[f] is not None for f in METRIC_FIELDS)
+                new = sum(v is not None for v in values.values())
+                if new <= have:
+                    return dup["id"], "duplicate", dup["profile"]
+                sets = ", ".join(f'"{f}"=?' for f in METRIC_FIELDS)
+                self.conn.execute(
+                    f"UPDATE measurements SET {sets}, raw=? WHERE id=?",
+                    [*(values[f] for f in METRIC_FIELDS), json.dumps(payload), dup["id"]],
+                )
+                self.conn.commit()
+                return dup["id"], "updated", dup["profile"]
 
             prof, guess, conf = self.estimate(float(weight), ts, user_slug) if assign else (None, None, 0.0)
             cols = ["ts", "user_slug", "user_name", *METRIC_FIELDS, "raw",
