@@ -30,7 +30,8 @@ Copy this folder to the Pi (for example to `~/scale-hub`), then run:
 cd ~/scale-hub && chmod +x install.sh && ./install.sh
 ```
 
-Then follow the steps it prints:
+Then reboot once (`sudo reboot`) so the Bluetooth fix below takes effect, and follow the
+steps it prints:
 
 1. `nano ~/ble-scale-sync/config.yaml` and set your name, height, birth date, gender and
    weight range.
@@ -174,7 +175,9 @@ exporter ([multi-user guide](https://blescalesync.dev/multi-user)).
 
 There's no login: anyone on your network can claim or edit. Only `/api/ingest` needs the key, so
 nothing else can inject readings. A repeat of the same reading (same weight within 2 minutes) is
-ignored, so webhook retries and re-imports never create duplicates.
+ignored, so webhook retries and re-imports never create duplicates. If the repeat carries more
+measurements (for example the scale's segment impedances after a weight-only reading), it
+replaces the stored one.
 
 ## Maintenance
 
@@ -187,8 +190,19 @@ python3 ~/scale-hub/server.py --import-jsonl ~/ble-scale-sync/measurements.jsonl
 ```
 
 Troubleshooting for the Bluetooth side: <https://blescalesync.dev/troubleshooting>.
-If the Nova drops the connection early, the weight is still saved but body composition is
-missing for that weigh-in. Moving the Pi closer helps.
+**The Nova hangs up about 5.5 s after connecting** (weight only, no body composition) when
+Linux refuses its request for a 30-45 ms connection interval. That happens once bluetoothd's
+GAP plugin has loaded the scale's advertised preference (10-12.5 ms). `install.sh` runs
+bluetoothd with `-P gap` to prevent it (`/etc/systemd/system/bluetooth.service.d/scale-hub.conf`).
+If it still happens, clear what is stored for the scale and reboot:
+
+```bash
+sudo rm -rf /var/lib/bluetooth/*/<SCALE-MAC> /var/lib/bluetooth/*/cache/<SCALE-MAC>
+sudo reboot
+```
+
+Check with `sudo btmon`: a working session shows `LE Remote Connection Parameter Request Reply`
+and `LE Connection Update Complete` with a 45 ms interval, not a `Negative Reply`.
 
 ## Remote access (outside your home)
 
