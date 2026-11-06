@@ -871,6 +871,15 @@ class Store:
                 self.reassign_auto()
             return cur.rowcount > 0
 
+    def delete_many(self, ids: list[int]) -> int:
+        """Delete several readings at once (History tab); one reassignment pass at the end."""
+        with self.lock:
+            cur = self.conn.executemany("DELETE FROM measurements WHERE id=?", [(i,) for i in ids])
+            self.conn.commit()
+            if cur.rowcount:
+                self.reassign_auto()
+            return cur.rowcount
+
 
 def import_jsonl(store: Store, path: Path) -> tuple[int, int]:
     """Backfill from a ble-scale-sync JSONL file. Returns (created, skipped)."""
@@ -1009,6 +1018,14 @@ class Handler(BaseHTTPRequestHandler):
                         "error": "already claimed", "needs_confirm": True,
                         "claimed_by": c.row["profile"], "claimed_at": c.row["claimed_at"],
                     })
+            if path == "/api/measurements/delete":
+                ids = self._body().get("ids")
+                if not isinstance(ids, list) or not 0 < len(ids) <= 10000 or not all(
+                        isinstance(i, int) and not isinstance(i, bool) for i in ids):
+                    raise ValueError("ids must be a list of 1 to 10000 measurement ids")
+                n = self.store.delete_many(ids)
+                log.info("Deleted %d readings", n)
+                return self._json(200, {"deleted": n})
             m = re.fullmatch(r"/api/measurements/(\d+)/release", path)
             if m:
                 return self._json(200, self.store.release(int(m.group(1))))

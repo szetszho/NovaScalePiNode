@@ -185,6 +185,7 @@ exporter ([multi-user guide](https://blescalesync.dev/multi-user)).
 | POST | `/api/measurements/<id>/release` | Back to automatic matching |
 | GET | `/api/export.csv?days=all&profile=dad` | CSV download |
 | DELETE | `/api/measurements/<id>` | Delete a reading |
+| POST | `/api/measurements/delete` | `{"ids": [1, 2, 3]}`: delete several readings (History tab: tick rows or "Date" for all in range, then **Delete selected**) |
 
 There's no login: anyone on your network can claim or edit. Only `/api/ingest` needs the key, so
 nothing else can inject readings. A repeat of the same reading (same weight within 2 minutes) is

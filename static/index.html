@@ -134,6 +134,10 @@ th:first-child, td:first-child { text-align: left; }
 th { color: var(--muted); font-weight: 500; }
 td select { padding: 2px 4px; font-size: 12px; }
 td.pri { font-weight: 650; }
+.pick { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+.pick input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
+.bulk { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+button:disabled { opacity: .45; cursor: default; }
 .empty { text-align: center; padding: 40px 16px; color: var(--muted); }
 .empty b { color: var(--ink); }
 a { color: var(--accent); }
@@ -239,7 +243,7 @@ const TABS = [["overview", "Overview"], ["body", "Body"], ["history", "History"]
 const state = {
   days: localGet("days", "90"), unit: localGet("unit", "kg"), tab: localGet("tab", "overview"),
   me: localGet("me", ""), metric: localGet("metric", "weight"), bodyMode: localGet("bodyMode", "balance"),
-  profiles: [], rows: [], all: [], recent: [], unclaimed: [], settings: { scale_profile: null, sync: {} },
+  profiles: [], rows: [], all: [], recent: [], unclaimed: [], settings: { scale_profile: null, sync: {} }, sel: new Set(),
 };
 
 function localGet(k, d) { try { return localStorage.getItem("sh." + k) ?? d; } catch { return d; } }
@@ -340,8 +344,8 @@ function assignSelect(r, compact) {
     .map((p) => `<option value="${esc(p.slug)}">${esc(p.name)}</option>`).join("");
   const guest = r.assign_method === "manual" && !r.profile ? "" : `<option value="_guest">Guest / not us</option>`;
   const back = r.assign_method === "manual" ? `<option value="_auto">Back to automatic</option>` : "";
-  return `<select data-assign="${r.id}" aria-label="Assign weigh-in">
-    <option value="">${compact ? "Move…" : "Someone else…"}</option>${opts}${guest}${back}</select>`;
+  return `<select data-assign="${r.id}" data-w="${r.weight}" data-ts="${esc(r.ts)}" aria-label="Assign weigh-in">
+    <option value="">${compact ? "Move…" : "Someone else…"}</option>${opts}${guest}${back}<option value="_delete">Delete weigh-in…</option></select>`;
 }
 
 function weighInRow(r) {
@@ -653,7 +657,7 @@ function historyTab(me) {
   const anyScale = rowsDesc.some((r) => r.scale?.mine), anyModel = rowsDesc.some((r) => r.model?.composition_source === "impedance");
   const body = rowsDesc.map((r) => {
     const how = r.assign_method === "manual" ? "claimed" : "auto " + Math.round((r.confidence ?? 0) * 100) + "%";
-    return `<tr><td>${dateLabel(r.ts, true)}</td><td class="pri">${fmtW(r.weight)}</td>
+    return `<tr><td><label class="pick"><input type="checkbox" data-sel="${r.id}" ${state.sel.has(r.id) ? "checked" : ""} aria-label="Select weigh-in">${dateLabel(r.ts, true)}</label></td><td class="pri">${fmtW(r.weight)}</td>
       ${anyScale ? `<td>${r.scale?.mine ? r.scale.bodyFatPercent.toFixed(1) : "–"}</td>` : ""}
       ${anyModel ? `<td>${r.model?.composition_source === "impedance" ? r.model.bodyFatPercent.toFixed(1) : "–"}</td>` : ""}
       ${!anyScale && !anyModel ? `<td>${r.bodyFatPercent != null ? r.bodyFatPercent.toFixed(1) : "–"}</td>` : ""}
@@ -664,10 +668,20 @@ function historyTab(me) {
   }).join("");
   return `${inboxPanel(15)}
     <div class="panel"><h2>${esc(me.name)}'s weigh-ins <span class="muted">${state.rows.length} in range · <a href="/api/export.csv?days=all&profile=${encodeURIComponent(state.me)}">Download CSV</a></span></h2>
-      ${rowsDesc.length ? `<div class="table-wrap"><table>
-        <thead><tr><th>Date</th><th>Weight</th>${anyScale ? "<th>Fat % (scale)</th>" : ""}${anyModel ? "<th>Fat % (model)</th>" : ""}${!anyScale && !anyModel ? "<th>Fat %</th>" : ""}
+      ${rowsDesc.length ? `<div class="bulk"><span class="muted" id="selCount">${selText()}</span>
+        <button class="danger" id="delSel" ${state.sel.size ? "" : "disabled"}>Delete selected</button></div>
+        <div class="table-wrap"><table>
+        <thead><tr><th><label class="pick"><input type="checkbox" id="selAll" ${rowsDesc.every((r) => state.sel.has(r.id)) ? "checked" : ""} aria-label="Select all in range">Date</label></th><th>Weight</th>${anyScale ? "<th>Fat % (scale)</th>" : ""}${anyModel ? "<th>Fat % (model)</th>" : ""}${!anyScale && !anyModel ? "<th>Fat %</th>" : ""}
           <th>Skel. muscle</th><th>Visceral</th><th>BMI</th><th>Scan</th><th>How</th><th></th></tr></thead>
-        <tbody>${body}</tbody></table></div>` : `<p class="muted">No weigh-ins in this range.</p>`}</div>`;
+        <tbody>${body}</tbody></table></div>
+        <p class="note">Pick the range at the top (7d … All), tick "Date" to select everything in it, then untick what to keep. Deleting is permanent here; the backup in ble-scale-sync's measurements.jsonl keeps them, so a re-import would bring them back.</p>` : `<p class="muted">No weigh-ins in this range.</p>`}</div>`;
+}
+function selText() { return state.sel.size ? `${state.sel.size} selected` : "Tick weigh-ins to delete several at once"; }
+async function deleteIds(ids) {
+  const res = await api("/api/measurements/delete", { method: "POST", body: JSON.stringify({ ids }) });
+  if (!res.ok) alert("Could not delete: " + ((await res.json().catch(() => ({}))).error || res.status));
+  state.sel.clear();
+  load();
 }
 
 // ---------- settings ----------
@@ -824,7 +838,7 @@ document.addEventListener("click", (e) => {
   const tab = t.closest("[data-tab]");
   if (tab) { e.preventDefault(); state.tab = tab.dataset.tab; localSet("tab", state.tab); render(); scrollTo({ top: 0 }); return; }
   const me = t.closest("[data-me]");
-  if (me) { state.me = me.dataset.me; localSet("me", state.me); load(); return; }
+  if (me) { state.me = me.dataset.me; localSet("me", state.me); state.sel.clear(); load(); return; }
   const cl = t.closest("[data-claim]");
   if (cl) { claim(cl.dataset.claim, state.me); return; }
   const card = t.closest("[data-metric]");
@@ -832,19 +846,39 @@ document.addEventListener("click", (e) => {
   const bm = t.closest("[data-bmode]");
   if (bm) { state.bodyMode = bm.dataset.bmode; localSet("bodyMode", state.bodyMode); render(); return; }
   if (t.closest("#syncNow")) { saveSettings({}); return; }
+  if (t.closest("#delSel")) {
+    const rows = state.rows.filter((r) => state.sel.has(r.id));
+    if (!rows.length) return;
+    const total = rows.length === 1 ? "this weigh-in" : `these ${rows.length} weigh-ins`;
+    const span = rows.length > 1 ? ` (${dateLabel(rows[0].ts)} – ${dateLabel(rows[rows.length - 1].ts)})` : "";
+    if (confirm(`Delete ${total} for ${nameOf(state.me)}${span}? This can't be undone.`)) deleteIds(rows.map((r) => r.id));
+    return;
+  }
   const rb = t.closest("#range button");
   if (rb) {
-    state.days = rb.dataset.d; localSet("days", state.days);
+    state.days = rb.dataset.d; localSet("days", state.days); state.sel.clear();
     document.querySelectorAll("#range button").forEach((b) => b.classList.toggle("on", b === rb));
     load();
   }
 });
 document.addEventListener("change", (e) => {
   if (e.target.id === "scaleProfile") { saveSettings({ scale_profile: e.target.value || null }); return; }
+  if (e.target.id === "selAll" || e.target.dataset.sel) {
+    if (e.target.id === "selAll") state.rows.forEach((r) => e.target.checked ? state.sel.add(r.id) : state.sel.delete(r.id));
+    else e.target.checked ? state.sel.add(+e.target.dataset.sel) : state.sel.delete(+e.target.dataset.sel);
+    if (e.target.id === "selAll") document.querySelectorAll("[data-sel]").forEach((c) => { c.checked = e.target.checked; });
+    else $("#selAll").checked = state.rows.every((r) => state.sel.has(r.id));
+    $("#selCount").textContent = selText(); $("#delSel").disabled = !state.sel.size;
+    return;
+  }
   const sel = e.target.closest("[data-assign]");
   if (!sel || !sel.value) return;
   const id = sel.dataset.assign, v = sel.value;
   if (v === "_auto") release(id);
+  else if (v === "_delete") {
+    if (confirm(`Delete the ${fmtW(+sel.dataset.w)} weigh-in from ${dateLabel(sel.dataset.ts, true)}? This can't be undone.`)) deleteIds([+id]);
+    else sel.value = "";
+  }
   else claim(id, v === "_guest" ? null : v);
 });
 $("#unit").onchange = (e) => { state.unit = e.target.value; localSet("unit", state.unit); render(); };
@@ -852,7 +886,7 @@ $("#unit").value = state.unit;
 if (!TABS.some(([id]) => id === state.tab)) state.tab = "overview";
 document.querySelectorAll("#range button").forEach((b) => b.classList.toggle("on", b.dataset.d === state.days));
 let resizeT; addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(render, 150); });
-setInterval(() => { if (!document.hidden && !dlg.open && state.tab !== "settings") load(); }, 30000);
+setInterval(() => { if (!document.hidden && !dlg.open && state.tab !== "settings" && !state.sel.size) load(); }, 30000);
 load().catch((err) => { $("#status").textContent = "cannot reach server"; console.error(err); });
 </script>
 </body>
