@@ -1,0 +1,80 @@
+diff --git a/src/scales/renpho-msc04.ts b/src/scales/renpho-msc04.ts
+index eafc1e5..6055f48 100644
+--- a/src/scales/renpho-msc04.ts
++++ b/src/scales/renpho-msc04.ts
+@@ -276,6 +276,15 @@ const MAX_ZONE_MINUTES = 840;
+  */
+ const HANDSHAKE_ENV = 'BLE_RMSC04_HANDSHAKE';
+ 
++/**
++ * Local patch: the Renpho app writes b2 again about 2 s after the 0x24 settled
++ * weight, with that weight (iOS capture, 2026-11-05). Without it the scale
++ * dropped our link about 4 s after 0x24 and never sent the 0x25 record.
++ * BLE_RMSC04_RESEND_PROFILE=0 turns the resend off.
++ */
++const RESEND_ENV = 'BLE_RMSC04_RESEND_PROFILE';
++const RESEND_SEQ = 2;
++
+ export type ConnectWrites = 'full' | 'time' | 'none';
+ 
+ /**
+@@ -331,9 +340,12 @@ export function buildGuestProfileFrame(
+   seq: number,
+   profile: UserProfile,
+   profileByte: number = GUEST_PROFILE_BYTE,
++  weightKg?: number,
+ ): Buffer {
+   const height = heightTenths(profile) ?? FALLBACK_HEIGHT_TENTHS;
+-  const weight = weightCg(profile) ?? FALLBACK_WEIGHT_CG;
++  const override =
++    weightKg !== undefined && isPlausibleKg(weightKg) ? Math.round(weightKg * 100) : null;
++  const weight = override ?? weightCg(profile) ?? FALLBACK_WEIGHT_CG;
+   return build55aaFrame(CMD_PROFILE, [
+     seq & 0xff,
+     GUEST_SLOT,
+@@ -815,7 +827,11 @@ export class RenphoMsc04Adapter
+    * The guest b2. Neither the frame nor the height, weight or profile byte in it
+    * ever reaches the log: they are the first user's.
+    */
+-  private async writeGuestProfile(owner: ConnectionContext, seq: number): Promise<void> {
++  private async writeGuestProfile(
++    owner: ConnectionContext,
++    seq: number,
++    weightKg?: number,
++  ): Promise<void> {
+     const profile = owner.profile;
+     if (heightTenths(profile) === null) {
+       bleLog.debug('Renpho R-MSC04: no usable height for the guest profile, sending 170.0 cm');
+@@ -843,7 +859,7 @@ export class RenphoMsc04Adapter
+     const ok = await this.send(
+       owner,
+       CMD_PROFILE,
+-      () => buildGuestProfileFrame(seq, profile, byte ?? GUEST_PROFILE_BYTE),
++      () => buildGuestProfileFrame(seq, profile, byte ?? GUEST_PROFILE_BYTE, weightKg),
+       byte === null ? 'guest profile (b2)' : 'guest profile (b2) with ble.rmsc04_profile_byte',
+       false,
+       byte ?? GUEST_PROFILE_BYTE,
+@@ -933,12 +949,23 @@ export class RenphoMsc04Adapter
+     const weight = this.decodeWeight(data, frame.len, frame.frameLen);
+     if (weight === null) return null;
+     if (frame.cmd === CMD_FINAL) {
++      const first = !this.s.finalReceived;
+       this.s.finalReceived = true;
+       this.s.finalWeight = weight;
++      if (first) this.resendProfileAfterFinal(weight);
+     }
+     return { weight, impedance: 0 };
+   }
+ 
++  /** Write b2 once more with the settled weight, as the Renpho app does (see RESEND_ENV). */
++  private resendProfileAfterFinal(weightKg: number): void {
++    const ctx = this.s.ctx;
++    if (!ctx || this.s.diag.mode !== 'full') return;
++    if ((process.env[RESEND_ENV] ?? '').trim() === '0') return;
++    bleLog.debug('Renpho R-MSC04: weight settled; sending the profile again with it');
++    void this.writeGuestProfile(ctx, RESEND_SEQ, weightKg);
++  }
++
+   /** Legacy single-char path (routes by frame content; the char UUID is irrelevant). */
+   parseNotification(data: Buffer): ScaleReading | null {
+     return this.parseCharNotification(CHR_NOTIFY, data);
