@@ -2,208 +2,278 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Scale Hub</title>
-<meta name="theme-color" content="#0f766e">
+<meta name="theme-color" content="#f6f4ef" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121314" media="(prefers-color-scheme: dark)">
 <style>
 :root {
-  --bg: #f4f6f8; --card: #ffffff; --ink: #14181f; --muted: #667085; --line: #e4e7ec;
-  --accent: #0f766e; --up: #b42318; --down: #027a48; --grid: #eef0f3; --warn-bg: #fff7e6; --warn: #b45309;
-  --fat: #f59e0b; --muscle: #0f766e; --lean: #94a3b8; --body: #e8ecf1; --body-edge: #cdd5df;
-  --seg-low: #bfdbfe; --seg-std: #3b82f6; --seg-high: #1e3a8a; --fat-low: #fde68a; --fat-std: #f59e0b; --fat-high: #dc2626;
-  --shadow: 0 1px 2px #1018280d, 0 1px 3px #1018281a;
+  --bg: #f6f4ef; --surface: #fffdf9; --surface-2: #f0ede6; --ink: #1c1d1f; --muted: #75706a; --faint: #a39e96;
+  --line: #e7e2d9; --pc: #0f766e;
+  --good: #2f7d57; --warn: #b7791f; --bad: #c2410c;
+  --fat: #e2a23b; --muscle: var(--pc); --lean: #b9b3a8;
+  --body: #ebe7df; --body-edge: #d9d3c8;
+  --seg-low: #c9dcf5; --seg-std: #5b8fd6; --seg-high: #22427a;
+  --fat-low: #f6dfae; --fat-std: #e2a23b; --fat-high: #c2410c;
+  --font: "Avenir Next", "Segoe UI Variable Text", "Segoe UI", "Helvetica Neue", system-ui, sans-serif;
+  --num: "SF Pro Rounded", ui-rounded, "Avenir Next", "Segoe UI Variable Display", system-ui, sans-serif;
+  --r: 18px; --shadow: 0 1px 0 #0000000a, 0 8px 24px -16px #3b2f1f33;
 }
 @media (prefers-color-scheme: dark) {
-  :root { --bg: #0d1117; --card: #161b22; --ink: #e6edf3; --muted: #8b949e; --line: #262c36;
-          --up: #f97066; --down: #4ade80; --grid: #20262f; --warn-bg: #2a2111; --warn: #fbbf24;
-          --fat: #fbbf24; --muscle: #2dd4bf; --lean: #64748b; --body: #222a35; --body-edge: #333c49; --shadow: none;
-          --seg-low: #1e3a5f; --seg-std: #3b82f6; --seg-high: #93c5fd; --fat-low: #5c4a12; --fat-std: #f59e0b; --fat-high: #f87171; }
+  :root { --bg: #121314; --surface: #1a1c1e; --surface-2: #232629; --ink: #ecebe7; --muted: #a09b93; --faint: #6d6963;
+          --line: #2b2e32; --good: #6cc597; --warn: #e3b25a; --bad: #f08a5d; --lean: #4d5257;
+          --body: #26292d; --body-edge: #34383d; --seg-low: #24364f; --seg-std: #5b8fd6; --seg-high: #a9c8f2;
+          --fat-low: #4a3a1a; --fat-std: #e2a23b; --fat-high: #f08a5d; --shadow: none; }
 }
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--ink);
-       font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-.wrap { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
-header { padding: 16px 0 0; }
-.top { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
-h1 { font-size: 20px; margin: 0; letter-spacing: -0.01em; }
-h1 small { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 8px; }
-.controls { display: flex; gap: 8px; flex-wrap: wrap; }
-select, button, input { font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--line);
-                        border-radius: 8px; padding: 6px 10px; }
-button { cursor: pointer; }
-button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-button.ghost { background: transparent; }
-button.danger { color: var(--up); }
-.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--card); }
-.seg button { border: 0; border-radius: 0; background: transparent; }
-.seg button.on { background: var(--accent); color: #fff; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--font); -webkit-font-smoothing: antialiased; }
+button, select, input { font: inherit; color: inherit; }
+button { cursor: pointer; background: none; border: 0; padding: 0; }
+a { color: var(--pc); text-decoration: none; text-underline-offset: 3px; }
+::selection { background: color-mix(in srgb, var(--pc) 24%, transparent); }
+html { accent-color: var(--pc); caret-color: var(--pc); scrollbar-color: var(--line) transparent; }
+:focus-visible { outline: 2px solid var(--pc); outline-offset: 2px; border-radius: 8px; }
+a:hover { text-decoration: underline; }
+.num { font-family: var(--num); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+.wrap { max-width: 1040px; margin: 0 auto; padding: 0 20px; }
 
-/* profile picker */
-.people { display: flex; gap: 8px; overflow-x: auto; padding: 12px 0 8px; scrollbar-width: none; }
-.person { display: flex; align-items: center; gap: 8px; padding: 5px 12px 5px 5px; border-radius: 999px;
-          border: 1px solid var(--line); background: var(--card); white-space: nowrap; flex: none; }
-.person.on { border-color: var(--pc); box-shadow: 0 0 0 1px var(--pc); font-weight: 600; }
-.avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--pc); color: #fff; display: grid;
-          place-items: center; font-size: 13px; font-weight: 700; flex: none; }
-.avatar.sm { width: 20px; height: 20px; font-size: 11px; }
-.avatar.lg { width: 40px; height: 40px; font-size: 17px; }
-.person .edit { color: var(--muted); font-size: 13px; padding: 0 0 0 2px; border: 0; background: none; }
-.person.add { padding: 5px 12px; color: var(--muted); border-style: dashed; }
+/* ---------- top bar ---------- */
+.bar { position: sticky; top: 0; z-index: 20; border-bottom: 1px solid transparent; }
+/* The blur sits on a pseudo-element: backdrop-filter on .bar itself would become the containing
+   block of the fixed bottom tab bar on phones and pin it inside the header. */
+.bar::before { content: ""; position: absolute; inset: 0; z-index: -1; background: color-mix(in srgb, var(--bg) 88%, transparent);
+               backdrop-filter: saturate(1.4) blur(14px); -webkit-backdrop-filter: saturate(1.4) blur(14px); }
+.bar.scrolled { border-bottom-color: var(--line); }
+.bar .wrap { display: flex; align-items: center; gap: 14px; height: 60px; }
+.brand { font-weight: 700; letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; }
+.brand svg { color: var(--pc); }
+.tabs { display: flex; gap: 2px; margin-left: 10px; }
+.tabs button { display: flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 999px; color: var(--muted); font-weight: 550; font-size: 14px; }
+.tabs button:hover { color: var(--ink); }
+.tabs button.on { color: var(--ink); background: var(--surface-2); }
+.tabs svg { display: none; }
+.tabs .count { min-width: 17px; height: 17px; border-radius: 9px; padding: 0 5px; background: var(--warn); color: #fff; font-size: 11px; line-height: 17px; text-align: center; }
+.spacer { flex: 1; }
+.who { display: flex; align-items: center; gap: 8px; padding: 4px 10px 4px 4px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; font-size: 14px; }
+.who svg { color: var(--muted); }
+.unit { padding: 6px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--muted); border: 1px solid var(--line); }
+.avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--pc); color: #fff; display: grid; place-items: center; font-size: 12px; font-weight: 700; flex: none; }
+.avatar.sm { width: 20px; height: 20px; font-size: 10px; }
+.avatar.lg { width: 40px; height: 40px; font-size: 16px; }
 
-/* tabs */
-.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin: 4px 0 16px; overflow-x: auto; scrollbar-width: none; }
-.tabs button { border: 0; background: none; border-radius: 0; padding: 10px 14px; color: var(--muted); font-weight: 550;
-               border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; }
-.tabs button.on { color: var(--ink); border-bottom-color: var(--pc, var(--accent)); }
-.tabs .dot { display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 999px; background: var(--warn); color: #fff;
-             font-size: 11px; line-height: 18px; margin-left: 6px; text-align: center; }
+.menu { position: absolute; right: 20px; top: 56px; min-width: 230px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+        box-shadow: 0 18px 40px -18px #0006; padding: 6px; display: none; z-index: 30; }
+.menu.open { display: block; animation: pop .14s ease-out; }
+.menu button { display: flex; width: 100%; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; text-align: left; font-size: 14px; }
+.menu button:hover { background: var(--surface-2); }
+.menu .check { margin-left: auto; color: var(--pc); }
+.menu hr { border: 0; border-top: 1px solid var(--line); margin: 6px 4px; }
 
-main { padding-bottom: 40px; }
-.panel { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 16px; box-shadow: var(--shadow); }
-.panel h2 { font-size: 15px; margin: 0 0 10px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-.panel h3 { font-size: 13px; margin: 14px 0 6px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
-.muted { color: var(--muted); font-weight: 400; font-size: 13px; }
-.note { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
-.inbox.attn { border-color: var(--warn); background: var(--warn-bg); }
-.grid2 { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 16px; align-items: start; }
-@media (max-width: 760px) { .grid2 { grid-template-columns: minmax(0, 1fr); } }
-.grid2 > * { min-width: 0; }
+@media (max-width: 720px) {
+  .wrap { padding: 0 16px; }
+  .tabs { position: fixed; left: 0; right: 0; bottom: 0; margin: 0; z-index: 25; justify-content: space-around;
+          background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+          border-top: 1px solid var(--line); padding: 6px 6px calc(6px + env(safe-area-inset-bottom)); }
+  .tabs button { flex-direction: column; gap: 2px; font-size: 11px; padding: 4px 10px; border-radius: 12px; position: relative; }
+  .tabs button.on { background: none; color: var(--pc); }
+  .tabs svg { display: block; }
+  .tabs .count { position: absolute; top: 0; right: 6px; }
+  main { padding-bottom: calc(90px + env(safe-area-inset-bottom)); }
+  .brand span { display: none; }
+}
 
-.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; margin: 0 0 16px; }
-.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; cursor: pointer; box-shadow: var(--shadow); }
-.card.on { outline: 2px solid var(--pc, var(--accent)); outline-offset: -1px; }
-.card .k { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; display: flex; justify-content: space-between; align-items: flex-start; gap: 4px; }
-.card .v { font-size: 24px; font-weight: 650; font-variant-numeric: tabular-nums; margin-top: 2px; }
-.card .v span { font-size: 13px; color: var(--muted); font-weight: 400; margin-left: 3px; }
-.card .d { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--muted); }
-.card .alt { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; margin-top: 2px; }
-.src { white-space: nowrap; align-self: flex-start; font-size: 10px; letter-spacing: .02em; text-transform: none; padding: 0 6px; border-radius: 999px; border: 1px solid var(--line); }
-.src.scale { color: var(--accent); border-color: currentColor; }
-.d .up { color: var(--up); } .d .down { color: var(--down); }
-@media (max-width: 520px) { .cards { grid-template-columns: repeat(2, 1fr); gap: 8px; } .card { padding: 10px 12px; } .card .v { font-size: 21px; } }
+/* ---------- layout ---------- */
+main { padding-top: 8px; padding-bottom: 48px; }
+.view { animation: rise .32s cubic-bezier(.16,1,.3,1); }
+@keyframes rise { from { opacity: .4; transform: translateY(4px); } }
+@keyframes pop { from { opacity: 0; transform: translateY(-4px) scale(.98); } }
+@media (prefers-reduced-motion: reduce) { .view, .menu.open { animation: none; } }
 
-#chart { width: 100%; height: 280px; display: block; }
-#chart text { fill: var(--muted); font-size: 11px; }
-.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 6px; }
-.legend i { display: inline-block; width: 18px; height: 0; border-top: 2.5px solid var(--pc); vertical-align: middle; margin-right: 5px; }
-.legend i.dash { border-top: 2px dashed var(--muted); }
-.tip { position: fixed; pointer-events: none; background: var(--ink); color: var(--bg); padding: 6px 8px;
-       border-radius: 6px; font-size: 12px; display: none; white-space: nowrap; z-index: 10; }
-.segments { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
-.segments div { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font-variant-numeric: tabular-nums; }
-.segments .sub { display: block; font-size: 12px; color: var(--muted); }
-.segments b { display: block; font-size: 12px; color: var(--muted); font-weight: 500; }
+.card { background: var(--surface); border-radius: var(--r); padding: 20px; box-shadow: var(--shadow); border: 1px solid var(--line); margin-bottom: 16px; }
+.card h2 { font-size: 15px; font-weight: 650; margin: 0; letter-spacing: -0.01em; }
+.card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.cols > * { min-width: 0; }
+@media (max-width: 820px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+.note { font-size: 13px; color: var(--muted); margin: 12px 0 0; line-height: 1.5; }
+details.more { margin-top: 4px; }
+details.more > summary { cursor: pointer; list-style: none; font-size: 14px; font-weight: 600; padding: 14px 0 2px; color: var(--ink); display: flex; align-items: center; gap: 8px; }
+details.more > summary::-webkit-details-marker { display: none; }
+details.more > summary::before { content: ""; width: 7px; height: 7px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(-45deg); transition: transform .15s; }
+details.more[open] > summary::before { transform: rotate(45deg); }
 
-/* body figure */
-.figure { width: 100%; max-width: 380px; display: block; margin: 0 auto; }
-.figure text { fill: var(--ink); font-size: 11px; }
-.figure .lbl { font-weight: 650; font-size: 12px; }
-.figure .sub { fill: var(--muted); font-size: 10.5px; }
-.figure .hero { font-size: 22px; font-weight: 750; fill: var(--ink); }
-.figure .plate { fill: var(--card); fill-opacity: .9; stroke: var(--body-edge); }
-.figure .heroK { font-size: 10px; fill: var(--muted); letter-spacing: .06em; }
-.rgs { display: grid; gap: 10px; }
-.rg { display: grid; grid-template-columns: 150px 1fr 130px; gap: 10px; align-items: center; font-size: 13px; }
-.rg-k { display: grid; } .rg-k .muted { font-size: 11px; }
-.rg-v { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
-.rg-v span { font-weight: 500; font-size: 12px; margin-left: 4px; }
-.rg-bar { position: relative; height: 12px; border-radius: 6px; overflow: hidden; background: var(--grid); }
-.rg-bar .z { position: absolute; top: 0; bottom: 0; } .rg-bar .z.std { background: color-mix(in srgb, var(--down) 18%, transparent); }
-.rg-bar .fill { position: absolute; left: 0; top: 3px; bottom: 3px; border-radius: 3px; }
-@media (max-width: 520px) { .rg { grid-template-columns: 1fr auto; } .rg-bar { grid-column: 1 / -1; grid-row: 2; } }
-.ev-low { color: var(--warn); fill: var(--warn); } .ev-standard { color: var(--down); fill: var(--down); } .ev-high { color: var(--up); fill: var(--up); }
-.figure text.ev-low { fill: var(--warn); } .figure text.ev-standard { fill: var(--down); } .figure text.ev-high { fill: var(--up); }
-.ev-bg-low { background: var(--warn); } .ev-bg-standard { background: var(--down); } .ev-bg-high { background: var(--up); }
-.seg button:disabled { opacity: .4; }
-.scale-bar { display: flex; height: 22px; border-radius: 6px; overflow: hidden; background: var(--grid); }
-.scale-bar span { display: block; height: 100%; }
-.bars { display: grid; gap: 10px; }
-.bars .row { display: grid; grid-template-columns: 112px 1fr; gap: 10px; align-items: center; font-size: 13px; }
-.bars .row b { font-weight: 600; }
-.keys { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--muted); margin-top: 8px; }
-.keys i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
-.big { display: flex; gap: 22px; flex-wrap: wrap; margin-bottom: 12px; }
-.big div { min-width: 90px; }
-.big .k { font-size: 12px; color: var(--muted); }
-.big .v { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.big .v span { font-size: 13px; font-weight: 400; color: var(--muted); margin-left: 2px; }
+.seg { display: inline-flex; background: var(--surface-2); border-radius: 999px; padding: 3px; gap: 2px; flex-wrap: wrap; }
+.seg button { padding: 5px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.seg button.on { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px #0000001f; }
+.seg button:disabled { opacity: .4; cursor: default; }
 
-/* weigh-in rows (inbox + history) */
-.wi { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; align-items: center; padding: 9px 0; border-top: 1px solid var(--line); }
-.wi:first-of-type { border-top: 0; }
-.wi .when { font-size: 13px; color: var(--muted); }
-.wi .w { font-weight: 650; font-variant-numeric: tabular-nums; font-size: 17px; margin-right: 8px; }
-.who { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
-.badge { font-size: 11px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
-.badge.unclaimed { border-color: var(--warn); color: var(--warn); }
-.badge.ok { border-color: var(--down); color: var(--down); }
-.badge.bad { border-color: var(--up); color: var(--up); }
-.acts { display: flex; gap: 6px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
-.acts select { padding: 5px 6px; font-size: 13px; max-width: 150px; }
-.acts button { padding: 5px 10px; font-size: 13px; }
-@media (max-width: 560px) { .wi { grid-template-columns: 1fr; } .acts { justify-content: flex-start; } }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 7px 14px; border-radius: 999px; font-size: 14px; font-weight: 600;
+       border: 1px solid var(--line); background: var(--surface); }
+.btn:hover { border-color: var(--faint); }
+.btn.primary { background: var(--pc); border-color: var(--pc); color: #fff; }
+.btn.danger { color: var(--bad); }
+.btn:disabled { opacity: .45; cursor: default; }
+select.plain { appearance: none; -webkit-appearance: none; border: 1px solid var(--line); background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23999' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 10px center;
+               border-radius: 999px; padding: 6px 28px 6px 12px; font-size: 13px; max-width: 170px; }
 
-.table-wrap { overflow-x: auto; }
-table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: 13px; }
-th, td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
-th:first-child, td:first-child { text-align: left; }
-th { color: var(--muted); font-weight: 500; }
-td select { padding: 2px 4px; font-size: 12px; }
+.pill { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--muted); white-space: nowrap; }
+.pill.warn { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
+.pill.good { background: color-mix(in srgb, var(--good) 14%, transparent); color: var(--good); }
+.pill.bad { background: color-mix(in srgb, var(--bad) 14%, transparent); color: var(--bad); }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; display: inline-block; }
+.up { color: var(--bad); } .down { color: var(--good); }
+
+/* ---------- overview ---------- */
+.banner { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 14px; margin-bottom: 16px;
+          background: color-mix(in srgb, var(--warn) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent); flex-wrap: wrap; }
+.banner b { font-weight: 650; }
+.banner .acts { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 24px; align-items: center; }
+@media (max-width: 720px) { .hero { grid-template-columns: minmax(0, 1fr); gap: 8px; } }
+.hero h1 { font-size: 15px; font-weight: 650; margin: 0; }
+.hero .big { font-size: 64px; line-height: 1; font-weight: 700; margin: 6px 0 10px; }
+.hero .big small { font-size: 20px; font-weight: 600; color: var(--muted); margin-left: 6px; letter-spacing: 0; }
+.deltas { display: flex; gap: 14px; font-size: 14px; flex-wrap: wrap; }
+.deltas span b { font-family: var(--num); font-variant-numeric: tabular-nums; }
+#chart { width: 100%; height: 220px; display: block; }
+#chart text { fill: var(--muted); font-size: 11px; font-family: var(--font); }
+.metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 32px; }
+@media (max-width: 720px) { .metrics { grid-template-columns: minmax(0, 1fr); } }
+.metric { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto 64px; gap: 12px; align-items: baseline; text-align: left;
+          padding: 12px 10px; margin: 0 -10px; border-radius: 12px; }
+.metric::before { content: ""; position: absolute; left: 10px; right: 10px; top: 0; border-top: 1px solid var(--line); }
+.metrics > .metric:nth-child(-n+2)::before, .metric.on::before, .metric:hover::before, .metric.on + .metric::before, .metric:hover + .metric::before { border-top-color: transparent; }
+@media (max-width: 720px) { .metrics > .metric:nth-child(2)::before { border-top-color: var(--line); } }
+.metric:hover { background: var(--surface-2); }
+.metric.on { background: color-mix(in srgb, var(--pc) 9%, transparent); }
+.metric .k { font-weight: 600; font-size: 14.5px; }
+.metric .k small { display: block; font-weight: 500; font-size: 12.5px; color: var(--muted); }
+.metric .v { font-family: var(--num); font-weight: 700; font-size: 20px; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.metric .v small { font-family: var(--font); font-size: 12.5px; font-weight: 600; color: var(--muted); margin-left: 3px; }
+.metric .d { font-size: 13px; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+.src { font-size: 11px; font-weight: 600; color: var(--muted); }
+.src.scale { color: var(--pc); }
+.legend { display: flex; gap: 16px; font-size: 12px; color: var(--muted); margin-top: 6px; flex-wrap: wrap; }
+.legend i { display: inline-block; width: 16px; border-top: 2.5px solid var(--pc); vertical-align: middle; margin-right: 6px; }
+.legend i.dash { border-top: 2px dashed var(--faint); }
+.tip { position: fixed; pointer-events: none; background: var(--ink); color: var(--bg); padding: 6px 9px; border-radius: 8px; font-size: 12px; display: none; white-space: nowrap; z-index: 40; }
+
+/* ---------- lists ---------- */
+.list { display: grid; }
+.row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 14px; align-items: center; padding: 12px 0; border-top: 1px solid var(--line); }
+.row:first-child { border-top: 0; padding-top: 2px; }
+.row .w { font-family: var(--num); font-weight: 700; font-size: 18px; font-variant-numeric: tabular-nums; margin-right: 8px; }
+.row .meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--muted); margin-top: 2px; }
+.row .acts { display: flex; gap: 8px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
+@media (max-width: 560px) { .row { grid-template-columns: minmax(0, 1fr); } .row .acts { justify-content: flex-start; } }
+
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: 14px; }
+th, td { text-align: right; padding: 9px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; padding-left: 0; }
+th { color: var(--muted); font-weight: 550; font-size: 12.5px; }
+tr:last-child td { border-bottom: 0; }
 td.pri { font-weight: 650; }
-.pick { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
-.pick input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
-.bulk { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
-button:disabled { opacity: .45; cursor: default; }
-.empty { text-align: center; padding: 40px 16px; color: var(--muted); }
-.empty b { color: var(--ink); }
-a { color: var(--accent); }
+.first { font-size: 11px; font-weight: 600; color: var(--pc); white-space: nowrap; }
+.table-wrap { overflow-x: auto; margin: 0 -4px; padding: 0 4px; }
+.pick { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; }
+.pick input { width: 17px; height: 17px; margin: 0; accent-color: var(--pc); }
+.bulk { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
 
-/* settings */
-.plist { display: grid; gap: 8px; }
-.prow { display: flex; align-items: center; gap: 12px; padding: 10px; border: 1px solid var(--line); border-radius: 12px; }
-.prow .info { flex: 1; min-width: 0; }
-.prow .info b { display: block; }
-.kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; font-size: 13px; margin-top: 10px; }
-.kv dt { color: var(--muted); } .kv dd { margin: 0; font-variant-numeric: tabular-nums; }
-.callout { border-radius: 10px; padding: 10px 12px; font-size: 13px; margin-top: 10px; border: 1px solid var(--line); }
-.callout.ok { border-color: var(--down); } .callout.bad { border-color: var(--up); background: var(--warn-bg); }
-.callout.warn { border-color: var(--warn); background: var(--warn-bg); }
-code { font-size: 12px; background: var(--grid); padding: 1px 5px; border-radius: 4px; }
+/* ---------- body ---------- */
+.figure { width: 100%; max-width: 300px; display: block; margin: 4px auto 0; }
+.figure text { fill: var(--ink); font-family: var(--font); }
+.figure .hero { font-family: var(--num); font-size: 25px; font-weight: 700; }
+.figure .heroK { font-size: 9.5px; fill: var(--muted); letter-spacing: .05em; font-weight: 650; }
+.figure .lbl { font-size: 12px; font-weight: 650; }
+.figure .sub { font-size: 11px; fill: var(--muted); }
+.figure .tag { font-family: var(--num); font-size: 12px; font-weight: 700; }
+.figure .plate { fill: var(--surface); fill-opacity: .92; }
+.bodymap { display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); gap: 16px; align-items: center; margin-top: 8px; }
+@media (max-width: 460px) { .bodymap { grid-template-columns: minmax(0, 1fr); } }
+.segs { display: grid; }
+.seg-row > span:nth-child(2) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.seg-row { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 11px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.seg-row:first-child { border-top: 0; }
+.seg-row .sw { width: 14px; height: 14px; border-radius: 4px; }
+.seg-row .kg { font-family: var(--num); font-weight: 700; font-variant-numeric: tabular-nums; }
+.seg-row .pc { font-variant-numeric: tabular-nums; min-width: 58px; text-align: right; font-size: 13px; font-weight: 650; line-height: 1.2; }
+.seg-row .pc small { display: block; font-size: 11px; font-weight: 600; }
+.ev-low { color: var(--warn); } .ev-standard { color: var(--good); } .ev-high { color: var(--bad); }
+.figure text.ev-low { fill: var(--warn); } .figure text.ev-standard { fill: var(--good); } .figure text.ev-high { fill: var(--bad); }
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 2px 0 16px; }
+.stats .k { font-size: 12.5px; color: var(--muted); }
+.stats .v { font-family: var(--num); font-size: 24px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.stats .v small { font-size: 12px; color: var(--muted); font-weight: 600; margin-left: 3px; letter-spacing: 0; }
+.rg { display: grid; grid-template-columns: 120px minmax(0, 1fr) 96px; gap: 12px; align-items: center; padding: 7px 0; font-size: 13.5px; }
+.rg .val { text-align: right; font-family: var(--num); font-weight: 700; font-variant-numeric: tabular-nums; }
+.rg .val span { display: block; font-family: var(--font); font-weight: 600; font-size: 11.5px; }
+.track { position: relative; height: 8px; border-radius: 4px; background: var(--surface-2); }
+.track .band { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--good) 22%, transparent); border-radius: 4px; }
+.track .mark { position: absolute; top: -4px; width: 4px; height: 16px; border-radius: 2px; margin-left: -2px; background: var(--ink); }
 
-dialog { border: 1px solid var(--line); border-radius: 14px; background: var(--card); color: var(--ink);
-         padding: 18px; width: min(440px, calc(100vw - 32px)); }
-dialog::backdrop { background: #0006; }
-dialog h3 { margin: 0 0 12px; }
-.form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.form label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
-.form label.full { grid-column: 1 / -1; }
-.form input, .form select { width: 100%; color: var(--ink); }
-.form .check { display: flex; align-items: center; gap: 8px; grid-column: 1 / -1; }
-.form .check input { width: auto; }
-.swatches { display: flex; gap: 6px; flex-wrap: wrap; }
-.swatches button { width: 26px; height: 26px; border-radius: 50%; padding: 0; border: 2px solid transparent; }
-.swatches button.on { border-color: var(--ink); }
-.dlg-acts { display: flex; justify-content: space-between; gap: 8px; margin-top: 16px; }
-.hint { font-size: 12px; color: var(--muted); grid-column: 1 / -1; margin: -4px 0 0; }
-.err { color: var(--up); font-size: 13px; min-height: 1em; margin-top: 8px; }
+@media (max-width: 520px) { .rg { grid-template-columns: minmax(0, 1fr) 90px; } .track { grid-column: 1 / -1; grid-row: 2; } }
+.split { display: grid; gap: 14px; }
+.split .lab { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px; }
+.split .bar2 { display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: var(--surface-2); }
+.split .bar2 span { display: block; height: 100%; }
+.keys { display: flex; gap: 14px; font-size: 12px; color: var(--muted); margin-top: 12px; flex-wrap: wrap; }
+.keys i { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 6px; vertical-align: 0; }
+.zgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.zgrid div { background: var(--surface-2); border-radius: 12px; padding: 10px 12px; font-size: 13px; font-variant-numeric: tabular-nums; }
+.zgrid b { display: block; font-weight: 550; color: var(--muted); font-size: 12px; }
+.zgrid .z { font-family: var(--num); font-weight: 700; font-size: 15px; }
+
+/* ---------- settings ---------- */
+.people { display: grid; }
+.person { display: flex; align-items: center; gap: 14px; padding: 12px 0; border-top: 1px solid var(--line); }
+.person:first-child { border-top: 0; padding-top: 0; }
+.person .info { flex: 1; min-width: 0; }
+.person .info b { display: flex; align-items: center; gap: 8px; font-weight: 650; }
+.kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 18px; font-size: 13.5px; margin-top: 14px; }
+.kv dt { color: var(--muted); } .kv dd { margin: 0; }
+.callout { border-radius: 12px; padding: 11px 14px; font-size: 13.5px; margin-top: 12px; background: var(--surface-2); }
+.callout.ok { background: color-mix(in srgb, var(--good) 12%, var(--surface)); }
+.callout.bad { background: color-mix(in srgb, var(--bad) 12%, var(--surface)); }
+.callout.warn { background: color-mix(in srgb, var(--warn) 14%, var(--surface)); }
+code { font-size: 12px; background: var(--surface-2); padding: 1px 6px; border-radius: 6px; word-break: break-all; }
+.empty { text-align: center; padding: 48px 20px; }
+.empty h2 { font-size: 20px; margin: 0 0 8px; }
+.empty p { color: var(--muted); max-width: 440px; margin: 0 auto 16px; }
+
+dialog { border: 0; border-radius: 22px; background: var(--surface); color: var(--ink); padding: 22px; width: min(460px, calc(100vw - 24px));
+         box-shadow: 0 30px 80px -30px #000a; }
+dialog::backdrop { background: #0007; backdrop-filter: blur(2px); }
+dialog h3 { margin: 0 0 16px; font-size: 18px; }
+.form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form label { display: grid; gap: 5px; font-size: 13px; color: var(--muted); font-weight: 550; }
+.form .full { grid-column: 1 / -1; }
+.form input, .form select { width: 100%; border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 9px 11px; color: var(--ink); font-size: 15px; }
+.form input:focus, .form select:focus { outline: 2px solid color-mix(in srgb, var(--pc) 50%, transparent); outline-offset: 1px; }
+.form .check { display: flex; align-items: center; gap: 10px; color: var(--ink); font-weight: 500; font-size: 14px; }
+.form .check input { width: 18px; height: 18px; accent-color: var(--pc); }
+.hint { font-size: 12px; color: var(--muted); grid-column: 1 / -1; margin: -4px 0 0; line-height: 1.45; }
+.swatches { display: flex; gap: 8px; flex-wrap: wrap; }
+.swatches button { width: 28px; height: 28px; border-radius: 50%; border: 3px solid var(--surface); box-shadow: 0 0 0 1px var(--line); }
+.swatches button.on { box-shadow: 0 0 0 2px var(--ink); }
+.dlg-acts { display: flex; gap: 8px; margin-top: 20px; }
+.err { color: var(--bad); font-size: 13px; min-height: 1em; margin-top: 10px; }
 </style>
 </head>
 <body>
-<header class="wrap">
-  <div class="top">
-    <h1>Scale Hub <small id="status">loading…</small></h1>
-    <div class="controls">
-      <div class="seg" id="range" role="group" aria-label="Range">
-        <button data-d="7">7d</button><button data-d="30">30d</button><button data-d="90">90d</button>
-        <button data-d="365">1y</button><button data-d="all">All</button>
-      </div>
-      <select id="unit" aria-label="Unit"><option value="kg">kg</option><option value="lb">lb</option></select>
-    </div>
+<header class="bar" id="bar">
+  <div class="wrap">
+    <div class="brand"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="5"/><path d="M8 9a5 5 0 0 1 8 0"/><path d="M12 9.5 13.5 7"/></svg><span>Scale Hub</span></div>
+    <nav class="tabs" id="tabs" role="tablist"></nav>
+    <div class="spacer"></div>
+    <button class="unit" id="unit" title="Switch unit"></button>
+    <button class="who" id="who" aria-haspopup="menu"></button>
   </div>
-  <nav class="people" id="people" aria-label="Who is looking"></nav>
-  <nav class="tabs" id="tabs" role="tablist"></nav>
+  <div class="menu" id="menu" role="menu"></div>
 </header>
-<main class="wrap"><div id="app"></div></main>
+<main class="wrap"><div id="app" class="view"></div></main>
 <div class="tip" id="tip"></div>
 
 <dialog id="dlg">
@@ -211,29 +281,26 @@ dialog h3 { margin: 0 0 12px; }
     <h3 id="dlg-title">Add person</h3>
     <div class="form">
       <label class="full">Name<input name="name" required maxlength="40" autocomplete="off"></label>
-      <div class="full"><div class="muted" style="margin-bottom:4px">Colour</div><div class="swatches" id="swatches"></div></div>
+      <div class="full"><div class="swatches" id="swatches"></div></div>
       <label>Height (cm)<input name="height_cm" type="number" step="0.5" min="50" max="250" inputmode="decimal"></label>
       <label>Birth date<input name="birth_date" type="date"></label>
       <label>Sex<select name="sex"><option value="">–</option><option value="male">Male</option><option value="female">Female</option></select></label>
       <label>Usual weight (kg)<input name="start_weight" type="number" step="0.1" min="2" max="400" inputmode="decimal"></label>
-      <p class="hint">Usual weight lets new weigh-ins be matched to this person before they have any history. Height, birth date and sex are needed for BMI and body composition, and for sending this person's profile to the scale.</p>
-      <label class="full">Body composition reference<select name="body_reference">
-        <option value="general">General</option>
-        <option value="east_asian">East Asian</option></select></label>
-      <p class="hint">Which published equations the model uses. General: NHANES III, BMI 25 / 30. East Asian (Chinese, Japanese, Korean and similar): Chinese-adult equations, WHO Asia BMI 23 / 27.5.</p>
+      <p class="hint">Usual weight matches new weigh-ins to this person before they have any history. Height, birth date and sex are needed for body composition and for sending this profile to the scale.</p>
       <label class="full">Show first<select name="primary_source">
         <option value="scale">The scale's own analysis (as in the Renpho app)</option>
         <option value="model">Scale Hub's model (published equations)</option></select></label>
-      <p class="hint">Both are kept for every weigh-in and shown side by side on the Body tab. The scale's analysis only exists for the person set as the scale profile (Settings).</p>
-      <label class="check"><input type="checkbox" name="athlete"> Athlete (trains 8+ hours a week)</label>
+      <label class="full">Model equations<select name="body_reference">
+        <option value="general">General (NHANES III, BMI 25 / 30)</option>
+        <option value="east_asian">East Asian (Chinese-adult equations, BMI 23 / 27.5)</option></select></label>
+      <label class="check full"><input type="checkbox" name="athlete"> Athlete (trains 8+ hours a week)</label>
     </div>
     <div class="err" id="perr"></div>
     <div class="dlg-acts">
-      <button type="button" class="ghost danger" id="pdelete">Delete</button>
-      <span style="display:flex;gap:8px;margin-left:auto">
-        <button type="button" class="ghost" id="pcancel">Cancel</button>
-        <button type="submit" class="primary">Save</button>
-      </span>
+      <button type="button" class="btn danger" id="pdelete">Delete</button>
+      <span class="spacer"></span>
+      <button type="button" class="btn" id="pcancel">Cancel</button>
+      <button type="submit" class="btn primary">Save</button>
     </div>
   </form>
 </dialog>
@@ -243,18 +310,30 @@ const METRICS = [
   { key: "weight", label: "Weight", unit: "mass", dp: 1, lowerIsGood: true },
   { key: "bodyFatPercent", label: "Body fat", unit: "%", dp: 1, lowerIsGood: true, both: true },
   { key: "skeletalMuscleMass", label: "Skeletal muscle", unit: "mass", dp: 1, lowerIsGood: false, both: true },
-  { key: "skeletalMusclePercent", label: "Skeletal muscle %", unit: "%", dp: 1, lowerIsGood: false, both: true },
   { key: "muscleMass", label: "Muscle", unit: "mass", dp: 1, lowerIsGood: false, both: true },
   { key: "waterPercent", label: "Water", unit: "%", dp: 1, lowerIsGood: false, both: true },
   { key: "visceralFat", label: "Visceral fat", unit: "", dp: 0, lowerIsGood: true, both: true },
-  { key: "boneMass", label: "Bone", unit: "mass", dp: 1, lowerIsGood: false, both: true },
   { key: "bmi", label: "BMI", unit: "", dp: 1, lowerIsGood: true },
   { key: "bmr", label: "BMR", unit: "kcal", dp: 0, lowerIsGood: false },
+  { key: "skeletalMusclePercent", label: "Skeletal muscle %", unit: "%", dp: 1, lowerIsGood: false, both: true },
+  { key: "boneMass", label: "Bone", unit: "mass", dp: 1, lowerIsGood: false, both: true },
   { key: "metabolicAge", label: "Metabolic age", unit: "yr", dp: 0, lowerIsGood: true },
 ];
+const TILE_KEYS = ["weight", "bodyFatPercent", "skeletalMuscleMass", "visceralFat", "bmi", "muscleMass", "waterPercent", "bmr", "metabolicAge"];
 const SEGMENTS = ["Trunk", "LeftArm", "RightArm", "LeftLeg", "RightLeg"];
-const PALETTE = ["#0f766e", "#7c3aed", "#c2410c", "#2563eb", "#be185d", "#4d7c0f", "#b45309", "#0e7490"];
+const SEG_NAME = { Trunk: "Trunk", LeftArm: "Left arm", RightArm: "Right arm", LeftLeg: "Left leg", RightLeg: "Right leg" };
+const PALETTE = ["#0f766e", "#6d5bd0", "#c2410c", "#2563eb", "#be185d", "#4d7c0f", "#b45309", "#0e7490"];
+const ICONS = {
+  overview: '<path d="M3 17l5-6 4 3 6-8 3 4"/>',
+  body: '<circle cx="12" cy="4.5" r="2.2"/><path d="M6 9h12M12 9v6M12 15l-3 6M12 15l3 6M6 9l-1.5 6M18 9l1.5 6"/>',
+  history: '<path d="M4 6h16M4 12h16M4 18h10"/>',
+  settings: '<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>',
+};
 const TABS = [["overview", "Overview"], ["body", "Body"], ["history", "History"], ["settings", "Settings"]];
+const EVAL = { low: "Low", standard: "Standard", high: "High" };
+const MODEL_NAMES = { general: "Model · General", east_asian: "Model · East Asian" };
+const SRC_LABEL = { scale: "Scale", impedance: "Model", bmi: "Estimate" };
+const RANGES = [["7", "7d"], ["30", "30d"], ["90", "90d"], ["365", "1y"], ["all", "All"]];
 
 const state = {
   days: localGet("days", "90"), unit: localGet("unit", "kg"), tab: localGet("tab", "overview"),
@@ -272,11 +351,10 @@ const getJSON = (path) => api(path).then((r) => r.json());
 function conv(m, v) { return m.unit === "mass" && state.unit === "lb" ? v * 2.20462 : v; }
 function unitLabel(m) { return m.unit === "mass" ? state.unit : m.unit; }
 function fmt(m, v) { return v == null ? "–" : conv(m, v).toFixed(m.dp); }
-function fmtW(kg) { return kg == null ? "–" : (state.unit === "lb" ? kg * 2.20462 : kg).toFixed(1) + " " + state.unit; }
+function fmtW(kg, dp = 1) { return kg == null ? "–" : (state.unit === "lb" ? kg * 2.20462 : kg).toFixed(dp) + " " + state.unit; }
 function dateLabel(iso, withTime) {
   const d = new Date(iso);
-  return withTime ? d.toLocaleString([], { dateStyle: "medium", timeStyle: "short" })
-                  : d.toLocaleDateString([], { month: "short", day: "numeric" });
+  return withTime ? d.toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : d.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 function relTime(iso) {
   const s = (Date.now() - new Date(iso).getTime()) / 1000;
@@ -288,22 +366,28 @@ function relTime(iso) {
 }
 const prof = (slug) => state.profiles.find((p) => p.slug === slug);
 const nameOf = (slug) => prof(slug)?.name ?? slug;
-function avatar(p, size) { return `<span class="avatar ${size || ""}" style="--pc:${p.color}">${esc((p.name || "?")[0].toUpperCase())}</span>`; }
+function avatar(p, size) { return `<span class="avatar ${size || ""}" style="background:${p.color}">${esc((p.name || "?")[0].toUpperCase())}</span>`; }
 function ageOf(birth) {
   if (!birth) return null;
   const b = new Date(birth + "T00:00:00"), n = new Date();
   return n.getFullYear() - b.getFullYear() - ((n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) ? 1 : 0);
 }
-const MODEL_NAMES = { general: "Model · General", east_asian: "Model · East Asian" };
-const SRC_LABEL = { scale: "scale", impedance: "model", bmi: "estimate" };
+function signed(v, dp = 1) { return (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v).toFixed(dp); }
+// WHO cut-offs; for Asian populations the 2004 WHO consultation added action points at 23 and 27.5.
+function bmiCategory(bmi, reference) {
+  if (bmi == null) return "";
+  if (bmi < 18.5) return "Underweight";
+  if (reference === "east_asian") return bmi < 23 ? "Healthy" : bmi < 27.5 ? "Increased risk" : "High risk";
+  return bmi < 25 ? "Healthy" : bmi < 30 ? "Overweight" : "Obese";
+}
 
-// The other source's value for the same weigh-in, for cards and the dashed chart line.
+// The other source's value for the same weigh-in (secondary line on charts and tiles).
 function secondary(r, key) {
   if (!r) return null;
   if (r.composition_source === "scale") return r.model?.composition_source === "impedance" ? r.model?.[key] ?? null : null;
   return r.scale?.mine ? r.scale[key] ?? null : null;
 }
-const secondaryName = (r) => r?.composition_source === "scale" ? "model" : "scale";
+const secondaryName = (r) => r?.composition_source === "scale" ? "Model" : "Scale";
 
 // ---------- data ----------
 async function load() {
@@ -311,10 +395,7 @@ async function load() {
   state.profiles = profiles; state.settings = settings;
   if (state.me && !prof(state.me)) state.me = "";
   if (!state.me && state.profiles.length) state.me = state.profiles[0].slug;
-  const [recent, unclaimed] = await Promise.all([
-    getJSON("/api/recent?limit=15"),
-    getJSON("/api/measurements?profile=_unassigned&days=30"),
-  ]);
+  const [recent, unclaimed] = await Promise.all([getJSON("/api/recent?limit=15"), getJSON("/api/measurements?profile=_unassigned&days=30")]);
   state.recent = recent; state.unclaimed = unclaimed.reverse();
   if (state.me) {
     const q = (days) => `/api/measurements?days=${days}&profile=${encodeURIComponent(state.me)}`;
@@ -331,114 +412,79 @@ async function claim(id, target) {
   if (res.status === 409) {
     const info = await res.json();
     const by = info.claimed_by ? nameOf(info.claimed_by) : "Guest";
-    const to = target ? nameOf(target) : "Guest";
     const when = info.claimed_at ? " on " + dateLabel(info.claimed_at, true) : "";
-    if (!confirm(`This weigh-in was already claimed by ${by}${when}.\n\nMove it to ${to}?`)) return;
+    if (!confirm(`This weigh-in was already claimed by ${by}${when}.\n\nMove it to ${target ? nameOf(target) : "Guest"}?`)) return;
     res = await api(`/api/measurements/${id}/claim`, { method: "POST", body: JSON.stringify({ ...body, confirm: true }) });
   }
   if (!res.ok) alert("Could not save: " + ((await res.json().catch(() => ({}))).error || res.status));
   load();
 }
-async function release(id) {
-  await api(`/api/measurements/${id}/release`, { method: "POST" });
+async function release(id) { await api(`/api/measurements/${id}/release`, { method: "POST" }); load(); }
+async function deleteIds(ids) {
+  const res = await api("/api/measurements/delete", { method: "POST", body: JSON.stringify({ ids }) });
+  if (!res.ok) alert("Could not delete: " + ((await res.json().catch(() => ({}))).error || res.status));
+  state.sel.clear();
   load();
 }
 
-function whoHtml(r) {
+function whoTag(r) {
   if (r.profile) {
     const p = prof(r.profile);
     const tag = r.assign_method === "manual" ? "claimed" : `auto ${Math.round((r.confidence ?? 0) * 100)}%`;
-    return `<span class="who">${p ? avatar(p, "sm") : ""}${esc(nameOf(r.profile))} <span class="badge">${tag}</span></span>`;
+    return `${p ? avatar(p, "sm") : ""}<span>${esc(nameOf(r.profile))}</span><span class="pill">${tag}</span>`;
   }
-  if (r.assign_method === "manual") return `<span class="who"><span class="badge">guest</span></span>`;
-  const guess = r.auto_profile && prof(r.auto_profile) ? ` · maybe ${esc(nameOf(r.auto_profile))}?` : "";
-  return `<span class="who"><span class="badge unclaimed">unclaimed</span><span class="muted">${guess}</span></span>`;
+  if (r.assign_method === "manual") return `<span class="pill">guest</span>`;
+  const guess = r.auto_profile && prof(r.auto_profile) ? `<span>maybe ${esc(nameOf(r.auto_profile))}?</span>` : "";
+  return `<span class="pill warn">needs a name</span>${guess}`;
 }
-
 function assignSelect(r, compact) {
-  const opts = state.profiles.filter((p) => p.slug !== r.profile)
-    .map((p) => `<option value="${esc(p.slug)}">${esc(p.name)}</option>`).join("");
+  const opts = state.profiles.filter((p) => p.slug !== r.profile).map((p) => `<option value="${esc(p.slug)}">${esc(p.name)}</option>`).join("");
   const guest = r.assign_method === "manual" && !r.profile ? "" : `<option value="_guest">Guest / not us</option>`;
   const back = r.assign_method === "manual" ? `<option value="_auto">Back to automatic</option>` : "";
-  return `<select data-assign="${r.id}" data-w="${r.weight}" data-ts="${esc(r.ts)}" aria-label="Assign weigh-in">
+  return `<select class="plain" data-assign="${r.id}" data-w="${r.weight}" data-ts="${esc(r.ts)}" aria-label="Assign weigh-in">
     <option value="">${compact ? "Move…" : "Someone else…"}</option>${opts}${guest}${back}<option value="_delete">Delete weigh-in…</option></select>`;
 }
-
 function weighInRow(r) {
   const mine = state.me && r.profile === state.me;
   const settled = r.profile && (r.assign_method === "manual" || (r.confidence ?? 0) >= 0.6);
-  const meBtn = state.me && !mine ? `<button class="${settled ? "" : "primary"}" data-claim="${r.id}">That's me</button>` : "";
-  const extra = r.impedanceTrunk100kHz ? `<span class="badge" title="The scale sent its segment impedances">body scan</span>` : "";
-  return `<div class="wi">
-    <div><span class="w">${fmtW(r.weight)}</span><span class="when">${esc(relTime(r.ts))}</span> ${extra}<div>${whoHtml(r)}</div></div>
+  const meBtn = state.me && !mine ? `<button class="btn ${settled ? "" : "primary"}" data-claim="${r.id}">That's me</button>` : "";
+  return `<div class="row"><div><span class="w">${fmtW(r.weight)}</span><span class="muted small">${esc(relTime(r.ts))}</span>
+      <div class="meta">${whoTag(r)}${r.impedanceTrunk100kHz ? '<span class="pill">body scan</span>' : ""}</div></div>
     <div class="acts">${meBtn}${assignSelect(r)}</div></div>`;
 }
 
-function inboxPanel(limit) {
-  const seen = new Set();
-  const rows = [...state.unclaimed.slice(0, 6), ...state.recent].filter((r) => !seen.has(r.id) && seen.add(r.id)).slice(0, limit);
-  if (!rows.length) return "";
-  const n = state.unclaimed.length;
-  return `<div class="panel inbox ${n ? "attn" : ""}">
-    <h2>${n ? `${n} weigh-in${n > 1 ? "s" : ""} need${n > 1 ? "" : "s"} a name` : "Recent weigh-ins"}
-      <span class="muted">Not right? Tap "That's me" or pick who it was.</span></h2>
-    ${rows.map(weighInRow).join("")}</div>`;
-}
-
 // ---------- shell ----------
-function renderPeople() {
-  $("#people").innerHTML = state.profiles.map((p) => `
-    <button class="person ${p.slug === state.me ? "on" : ""}" style="--pc:${p.color}" data-me="${esc(p.slug)}">
-      ${avatar(p)}${esc(p.name)}${p.slug === state.settings.scale_profile ? ` <span title="The scale computes its own analysis for this profile">⚖</span>` : ""}${p.slug === state.me ? `<span class="edit" data-edit="${esc(p.slug)}" title="Edit profile">✎</span>` : ""}
-    </button>`).join("") + `<button class="person add" data-add>+ Add person</button>`;
-}
-function renderTabs() {
+function renderShell() {
   const n = state.unclaimed.length;
-  $("#tabs").innerHTML = TABS.map(([id, label]) => `<button role="tab" data-tab="${id}" class="${state.tab === id ? "on" : ""}" aria-selected="${state.tab === id}">${label}${id === "history" && n ? `<span class="dot">${n}</span>` : ""}</button>`).join("");
-}
-
-function lastWith(key) {
-  for (let i = state.all.length - 1; i >= 0; i--) if (state.all[i][key] != null) return state.all[i];
-  return null;
-}
-function deltaVs(m, daysAgo) {
-  const last = lastWith(m.key);
-  if (!last) return null;
-  const cutoff = new Date(last.ts).getTime() - daysAgo * 864e5;
-  let ref = null;
-  // Body composition only compares like with like: the scale's figures and the model differ a lot.
-  const same = (r) => !m.both || r.composition_source === last.composition_source;
-  for (const r of state.all) { if (new Date(r.ts).getTime() <= cutoff && r[m.key] != null && same(r)) ref = r; }
-  return ref ? last[m.key] - ref[m.key] : null;
-}
-function deltaHtml(m, d, tag) {
-  if (d == null) return "";
-  const v = conv(m, d), good = m.lowerIsGood ? v < 0 : v > 0;
-  const cls = Math.abs(v) < Math.pow(10, -m.dp) / 2 ? "" : good ? "down" : "up";
-  return `<span class="${cls}">${v > 0 ? "+" : ""}${v.toFixed(m.dp)}</span> ${tag}`;
+  $("#tabs").innerHTML = TABS.map(([id, label]) => `<button role="tab" data-tab="${id}" class="${state.tab === id ? "on" : ""}" aria-selected="${state.tab === id}">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[id]}</svg>
+    ${label}${id === "history" && n ? `<span class="count">${n}</span>` : ""}</button>`).join("");
+  const me = prof(state.me);
+  $("#who").innerHTML = me ? `${avatar(me)}${esc(me.name)}<svg width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>` : "Add person";
+  $("#unit").textContent = state.unit;
+  $("#menu").innerHTML = state.profiles.map((p) => `<button data-me="${esc(p.slug)}">${avatar(p, "sm")}${esc(p.name)}
+      ${p.slug === state.settings.scale_profile ? '<span class="pill">scale</span>' : ""}${p.slug === state.me ? '<svg class="check" width="14" height="14" viewBox="0 0 14 14" aria-label="selected"><path d="M2.5 7.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ""}</button>`).join("")
+    + (state.profiles.length ? "<hr>" : "")
+    + (me ? `<button data-edit="${esc(me.slug)}">Edit ${esc(me.name)}</button>` : "") + `<button data-add>Add person</button>`;
+  if (me) document.documentElement.style.setProperty("--pc", me.color);
 }
 
 function render() {
-  renderPeople(); renderTabs();
-  const latest = state.recent[0];
-  $("#status").textContent = latest ? `last weigh-in ${relTime(latest.ts)}` : "no data yet";
-  const me = prof(state.me);
-  if (me) document.documentElement.style.setProperty("--pc", me.color);
-  const app = $("#app");
+  renderShell();
+  const app = $("#app"), me = prof(state.me);
+  app.classList.remove("view"); void app.offsetWidth; app.classList.add("view");
   if (state.tab === "settings") { app.innerHTML = settingsTab(); return; }
   if (!state.profiles.length) {
-    app.innerHTML = `<div class="panel empty"><p><b>Who uses this scale?</b></p>
-      <p>Add a profile for each person. No login: everyone picks their name at the top of the page.
-      Weigh-ins are matched to people automatically by weight, and anyone can claim a weigh-in that's theirs.</p>
-      <p><button class="primary" data-add>+ Add the first person</button></p>
-      ${state.recent.length ? `<p class="muted">${state.recent.length} weigh-ins are waiting to be assigned.</p>` : ""}</div>`;
+    app.innerHTML = `<div class="card empty"><h2>Who uses this scale?</h2>
+      <p>Add a profile for each person. There's no login: everyone picks their name at the top. Weigh-ins are matched to people by weight, and anyone can claim one that's theirs.</p>
+      <button class="btn primary" data-add>Add the first person</button>
+      ${state.recent.length ? `<p class="small" style="margin-top:16px">${state.recent.length} weigh-ins are waiting.</p>` : ""}</div>`;
     return;
   }
   if (state.tab === "history") { app.innerHTML = historyTab(me); return; }
   if (!state.all.length) {
-    app.innerHTML = inboxPanel(8) + `<div class="panel empty"><p><b>No weigh-ins for ${esc(me.name)} yet.</b></p>
-      <p>Step on the scale barefoot, hold the handle and stay on until it shows the result. ${me.start_weight ? "" :
-      `Setting a <a href="#" data-edit="${esc(me.slug)}">usual weight</a> helps match the first weigh-in to you, or claim one above.`}</p></div>`;
+    app.innerHTML = banner() + `<div class="card empty"><h2>No weigh-ins for ${esc(me.name)} yet</h2>
+      <p>Step on barefoot, hold the handle and stay on until the scale shows the result. ${me.start_weight ? "" : `A <a href="#" data-edit="${esc(me.slug)}">usual weight</a> helps match the first one to you, or claim one in History.`}</p></div>`;
     return;
   }
   if (state.tab === "body") { app.innerHTML = bodyTab(me); return; }
@@ -446,150 +492,116 @@ function render() {
   drawChart(METRICS.find((x) => x.key === state.metric));
 }
 
-// ---------- overview ----------
-function overviewTab(me) {
-  const available = METRICS.filter((m) => state.all.some((r) => r[m.key] != null));
-  if (!available.some((m) => m.key === state.metric)) state.metric = "weight";
-  const cards = available.map((m) => {
-    const last = lastWith(m.key);
-    const sec = m.both ? secondary(last, m.key) : null;
-    const src = m.both && last?.composition_source ? `<span class="src ${last.composition_source === "scale" ? "scale" : ""}">${SRC_LABEL[last.composition_source] || ""}</span>` : "";
-    return `<div class="card ${m.key === state.metric ? "on" : ""}" data-metric="${m.key}" tabindex="0">
-      <div class="k">${m.label}${src}</div>
-      <div class="v">${fmt(m, last?.[m.key])}<span>${unitLabel(m)}</span></div>
-      ${sec != null ? `<div class="alt">${secondaryName(last)} ${fmt(m, sec)} ${unitLabel(m)}</div>` : ""}
-      <div class="d">${m.key === "bmi" ? `<b>${bmiCategory(last?.bmi, me.body_reference)}</b> · ` : ""}${[deltaHtml(m, deltaVs(m, 7), "7d"), deltaHtml(m, deltaVs(m, 30), "30d")].filter(Boolean).join(" · ") || "&nbsp;"}</div>
-    </div>`;
-  }).join("");
-  const m = METRICS.find((x) => x.key === state.metric);
-  const missing = [!me.height_cm && "height", !me.birth_date && "birth date", !me.sex && "sex"].filter(Boolean);
-  const hasSecondary = m.both && state.rows.some((r) => secondary(r, m.key) != null);
-  return `${state.unclaimed.length ? inboxPanel(6) : ""}
-    <div class="cards">${cards}</div>
-    ${missing.length ? `<p class="muted">Add ${missing.join(", ")} to <a href="#" data-edit="${esc(me.slug)}">${esc(me.name)}'s profile</a> for BMI and body composition.</p>` : ""}
-    <div class="panel"><h2>${esc(me.name)} · ${m.label} <span class="muted">${state.rows.filter((r) => r[m.key] != null).length} readings · ${unitLabel(m) || "value"}</span></h2>
-      <svg id="chart" role="img" aria-label="${m.label} over time"></svg>
-      ${hasSecondary ? `<div class="legend"><span><i></i>Shown first (7-reading average)</span><span><i class="dash"></i>Other source</span></div>` : ""}
-      ${m.both ? `<p class="note">${sourceNote(lastWith(m.key))}</p>` : ""}</div>
-    ${state.unclaimed.length ? "" : inboxPanel(5)}`;
+function banner() {
+  const n = state.unclaimed.length;
+  if (!n) return "";
+  const r = state.unclaimed[0];
+  return `<div class="banner"><span class="dot" style="color:var(--warn)"></span>
+    <div><b>${n} weigh-in${n > 1 ? "s" : ""} need${n > 1 ? "" : "s"} a name</b><div class="small muted">Latest: ${fmtW(r.weight)}, ${esc(relTime(r.ts))}</div></div>
+    <div class="acts">${state.me ? `<button class="btn primary" data-claim="${r.id}">That's me</button>` : ""}<button class="btn" data-tab="history">Review</button></div></div>`;
 }
 
-const SOURCE_NOTES = {
-  scale: "Shown first: the scale's own analysis, the same figures the Renpho app shows. It depends on weight, height and impedance (not on sex or age).",
-  impedance: "Shown first: Scale Hub's model from the scale's segment impedance. Fat-free mass from the NHANES III equations, skeletal muscle from Janssen et al. 2000. Typical error about ±3–4 % body fat.",
-  impedance_east_asian: "Shown first: Scale Hub's model with East Asian equations. Fat-free mass from Chen et al. 2016 (704 Chinese adults, checked against DXA), skeletal muscle from Janssen et al. 2000 plus 2.45 kg. Typical error about ±3–4 % body fat.",
-  bmi: "Estimated from weight, height, age and sex (no impedance in this weigh-in). Stay on the scale holding the handle until it shows results to get a body scan.",
-};
-function sourceNote(r) {
-  if (!r) return SOURCE_NOTES.bmi;
-  const src = r.composition_source;
-  return (src === "impedance" && r.reference === "east_asian" ? SOURCE_NOTES.impedance_east_asian : SOURCE_NOTES[src]) || SOURCE_NOTES.bmi;
+// ---------- overview ----------
+function lastWith(key) { for (let i = state.all.length - 1; i >= 0; i--) if (state.all[i][key] != null) return state.all[i]; return null; }
+function deltaVs(m, daysAgo) {
+  const last = lastWith(m.key);
+  if (!last) return null;
+  const cutoff = new Date(last.ts).getTime() - daysAgo * 864e5;
+  const same = (r) => !m.both || r.composition_source === last.composition_source;  // compare like with like
+  let ref = null;
+  for (const r of state.all) if (new Date(r.ts).getTime() <= cutoff && r[m.key] != null && same(r)) ref = r;
+  return ref ? last[m.key] - ref[m.key] : null;
 }
-// WHO cut-offs; for Asian populations the 2004 WHO consultation added action points at 23 and 27.5.
-function bmiCategory(bmi, reference) {
-  if (bmi == null) return "";
-  if (bmi < 18.5) return "Underweight";
-  if (reference === "east_asian") return bmi < 23 ? "Healthy" : bmi < 27.5 ? "Increased risk" : "High risk";
-  return bmi < 25 ? "Healthy" : bmi < 30 ? "Overweight" : "Obese";
+function deltaText(m, d) {
+  if (d == null) return "";
+  const v = conv(m, d), flat = Math.abs(v) < Math.pow(10, -m.dp) / 2;
+  const cls = flat ? "" : (m.lowerIsGood ? v < 0 : v > 0) ? "down" : "up";
+  return `<span class="${cls}">${flat ? "±0" : signed(v, m.dp)}</span>`;
+}
+function overviewTab(me) {
+  const wM = METRICS[0];
+  const tiles = TILE_KEYS.map((k) => METRICS.find((m) => m.key === k)).filter((m) => state.all.some((r) => r[m.key] != null));
+  if (![wM, ...tiles].some((m) => m.key === state.metric)) state.metric = "weight";
+  const m = METRICS.find((x) => x.key === state.metric);
+  const tileHtml = tiles.map((t) => {
+    const r = lastWith(t.key), sec = t.both ? secondary(r, t.key) : null, d30 = deltaVs(t, 30);
+    const sub = t.key === "bmi" ? bmiCategory(r?.bmi, me.body_reference)
+      : [t.both && r?.composition_source ? SRC_LABEL[r.composition_source] : "", sec != null ? `${secondaryName(r).toLowerCase()} ${fmt(t, sec)}` : ""].filter(Boolean).join(" · ");
+    return `<button class="metric ${t.key === state.metric ? "on" : ""}" data-metric="${t.key}" aria-pressed="${t.key === state.metric}">
+      <span class="k">${t.label}<small>${sub || "&nbsp;"}</small></span>
+      <span class="v">${fmt(t, r?.[t.key])}<small>${unitLabel(t)}</small></span>
+      <span class="d">${d30 != null ? deltaText(t, d30) + " <span>30d</span>" : ""}</span></button>`;
+  }).join("");
+  const missing = [!me.height_cm && "height", !me.birth_date && "birth date", !me.sex && "sex"].filter(Boolean);
+  const hasSec = m.both && state.rows.some((r) => secondary(r, m.key) != null);
+  const heroRow = lastWith(m.key) || lastWith("weight");
+  const recent = state.recent.slice(0, 4);
+  return `${banner()}
+    <section class="card"><div class="hero">
+      <div><h1>${m.label}</h1>
+        <div class="big num">${fmt(m, heroRow?.[m.key])}<small>${unitLabel(m)}</small></div>
+        <div class="deltas">${[[7, "7 days"], [30, "30 days"], [90, "90 days"]].map(([d, l]) => { const v = deltaVs(m, d); return v == null ? "" : `<span><b>${deltaText(m, v)}</b> <span class="muted">${l}</span></span>`; }).join("")}</div>
+        <div class="small muted" style="margin-top:10px">${m.both && heroRow?.composition_source ? `${SRC_LABEL[heroRow.composition_source]} figures${secondary(heroRow, m.key) != null ? ` · ${secondaryName(heroRow).toLowerCase()} ${fmt(m, secondary(heroRow, m.key))} ${unitLabel(m)}` : ""} · ` : ""}${m.key === "bmi" ? bmiCategory(heroRow?.bmi, me.body_reference) + " · " : ""}last weigh-in ${esc(relTime(heroRow.ts))}</div>
+        ${m.key !== "weight" ? `<a href="#" class="small" data-metric="weight" style="display:inline-block;margin-top:10px">Back to weight</a>` : ""}</div>
+      <div><svg id="chart" role="img" aria-label="${m.label} over time"></svg>
+        <div class="legend"><span><i></i>7-reading average</span>${hasSec ? `<span><i class="dash"></i>${secondaryName(heroRow)}</span>` : ""}</div></div>
+    </div></section>
+    ${missing.length ? `<p class="small muted" style="margin:-4px 0 14px">Add ${missing.join(", ")} to <a href="#" data-edit="${esc(me.slug)}">${esc(me.name)}'s profile</a> for body composition.</p>` : ""}
+    <section class="card"><div class="card-head"><h2>Body composition</h2><span class="small muted">Select one to chart it</span></div>
+      <div class="metrics">${tileHtml}</div></section>
+    ${recent.length ? `<section class="card"><div class="card-head"><h2>Recent weigh-ins</h2><a href="#" data-tab="history" class="small">All weigh-ins</a></div>
+      <div class="list">${recent.map(weighInRow).join("")}</div></section>` : ""}`;
 }
 
 // ---------- body ----------
 const segZ = (r, s, f) => r?.["impedance" + s + f];
-const SEG_NAME = { Trunk: "Trunk", LeftArm: "Left arm", RightArm: "Right arm", LeftLeg: "Left leg", RightLeg: "Right leg" };
-// Lean tissue conducts; for the same limb, lean volume goes as 1/impedance.
-// 100 kHz passes through cells, so it reflects all body water in the segment.
 function leanDiffPct(zA, zB) { return zA && zB ? (zB / zA - 1) * 100 : null; }
-function signed(v, dp = 1) { return (v > 0 ? "+" : "") + v.toFixed(dp); }
 function refFor(src) {
   const t = new Date(src.ts).getTime();
   let ref = null;
   for (const r of state.all) if (segZ(r, "Trunk", "100kHz") && new Date(r.ts).getTime() <= t - 25 * 864e5) ref = r;
   return ref;
 }
+function shade(c, a) { return `color-mix(in srgb, ${c} ${Math.round(a * 100)}%, var(--body))`; }
 
-function bodyTab(me) {
-  const scan = lastWith("impedanceTrunk100kHz");
-  const latest = state.all[state.all.length - 1];
-  const r = scan || latest;
-  if (!scan) {
-    return `<div class="panel empty"><p><b>No body scan yet.</b></p><p>Step on barefoot, hold the handle with both hands and stay on until
-      the scale shows the full result (about 15 seconds after the weight settles). The scale then sends ten impedances: trunk,
-      both arms and both legs, at 20 and 100 kHz.</p></div>`;
-  }
-  const ref = refFor(scan);
-  const modes = [["muscle", "Muscle"], ["fat", "Fat"], ["balance", "Left / right"]];
-  if (ref) modes.push(["change", "vs " + dateLabel(ref.ts)]);
-  let mode = modes.some(([m]) => m === state.bodyMode) ? state.bodyMode : "muscle";
-  if ((mode === "muscle" || mode === "fat") && !scan.segmental) mode = "balance";
-  const notes = {
-    muscle: "Muscle per segment and % of standard, as in the Renpho report (Low under 90 %, High over 110 %). Arms, trunk and legs get the app's fixed shares of your muscle; each left/right pair is split by its measured impedance, so a real difference between sides shows.",
-    fat: "Fat per segment and % of standard (Low under 80 %). Impedance can't locate fat: arms, trunk and legs get the app's fixed shares, and the side with more lean tissue gets a little less.",
-    balance: "Each limb against the other side: the leaner side is shaded, more strongly the bigger the difference (impedance at 100 kHz).",
-    change: ref ? `Green: more lean tissue than on ${dateLabel(ref.ts)}. Orange: less (impedance at 100 kHz).` : "",
-  };
-  return `<div class="grid2">
-      <div class="panel"><h2>Body map <span class="muted">${dateLabel(scan.ts, true)}</span></h2>
-        <div class="seg" role="group" aria-label="Show" style="margin-bottom:8px;flex-wrap:wrap">
-          ${modes.map(([m, l]) => `<button data-bmode="${m}" class="${mode === m ? "on" : ""}" ${(m === "muscle" || m === "fat") && !scan.segmental ? "disabled" : ""}>${l}</button>`).join("")}</div>
-        ${bodyFigure(scan, ref, mode)}
-        ${mode === "muscle" || mode === "fat" ? `<div class="keys">${mode === "muscle"
-          ? '<span><i style="background:var(--seg-low)"></i>Low</span><span><i style="background:var(--seg-std)"></i>Standard</span><span><i style="background:var(--seg-high)"></i>High</span>'
-          : '<span><i style="background:var(--fat-low)"></i>Low</span><span><i style="background:var(--fat-std)"></i>Standard</span><span><i style="background:var(--fat-high)"></i>High</span>'}</div>` : ""}
-        <p class="note">${notes[mode]} ${scan.segmental ? "" : "Add height and sex to the profile for the muscle and fat views."} Hydration moves impedance, so compare weigh-ins taken at the same time of day.</p>
-      </div>
-      <div>${standardsPanel(r)}${compositionPanel(r, me)}</div>
-    </div>
-    ${segmentPanel(scan, ref)}`;
-}
-
-function shade(hex, a) { return `color-mix(in srgb, ${hex} ${Math.round(a * 100)}%, var(--body))`; }
-function bodyFigure(src, ref, mode) {
-  const z = (s) => segZ(src, s, "100kHz");
-  const fill = {}, note = {};
-  const accent = "var(--pc)";
-  for (const s of SEGMENTS) { fill[s] = "var(--body)"; note[s] = ""; }
+function segColours(src, ref, mode) {
+  const fill = {}, tag = {}, z = (s) => segZ(src, s, "100kHz");
+  for (const s of SEGMENTS) { fill[s] = "var(--body)"; tag[s] = ""; }
   const sg = mode === "muscle" ? src.segmental?.muscle : mode === "fat" ? src.segmental?.fat : null;
   if (sg) {
     const pal = mode === "muscle" ? { low: "var(--seg-low)", standard: "var(--seg-std)", high: "var(--seg-high)" }
                                   : { low: "var(--fat-low)", standard: "var(--fat-std)", high: "var(--fat-high)" };
-    for (const s of SEGMENTS) {
-      if (!sg[s]) continue;
-      fill[s] = pal[sg[s].eval];
-      note[s] = `${fmtW(sg[s].kg)} · ${Math.round(sg[s].pct)}% · ${EVAL[sg[s].eval]}`;
-    }
+    for (const s of SEGMENTS) if (sg[s]) { fill[s] = pal[sg[s].eval]; tag[s] = `${Math.round(sg[s].pct)}%`; }
   } else if (mode === "balance") {
     for (const [a, b] of [["LeftArm", "RightArm"], ["LeftLeg", "RightLeg"]]) {
-      const d = leanDiffPct(z(a), z(b)); // >0: left has lower impedance = leaner
+      const d = leanDiffPct(z(a), z(b));  // >0: left has lower impedance = leaner
       if (d == null) continue;
       const lean = d >= 0 ? a : b, other = lean === a ? b : a, pct = Math.abs(d);
-      fill[lean] = pct < 1 ? shade(accent, 0.25) : shade(accent, Math.min(0.85, 0.3 + pct / 10));
-      fill[other] = shade(accent, 0.2);
-      note[lean] = pct < 1 ? "balanced" : `${pct.toFixed(1)}% leaner`;
-      note[other] = pct < 1 ? "balanced" : "";
+      fill[lean] = shade("var(--pc)", pct < 1 ? 0.3 : Math.min(0.9, 0.35 + pct / 10));
+      fill[other] = shade("var(--pc)", 0.22);
+      tag[lean] = pct < 1 ? "=" : `+${pct.toFixed(1)}%`;
     }
-    fill.Trunk = shade(accent, 0.3);
-  } else {
+    fill.Trunk = shade("var(--pc)", 0.3);
+  } else if (ref) {
     for (const s of SEGMENTS) {
-      const ch = leanDiffPct(z(s), segZ(ref, s, "100kHz")); // >0: impedance fell = more lean
+      const ch = leanDiffPct(z(s), segZ(ref, s, "100kHz"));  // >0: impedance fell = more lean
       if (ch == null) continue;
-      const a = Math.min(0.85, 0.2 + Math.abs(ch) / 6);
-      fill[s] = Math.abs(ch) < 0.5 ? "var(--body)" : shade(ch > 0 ? "#16a34a" : "#ea580c", a);
-      note[s] = `${signed(ch)}% lean`;
+      fill[s] = Math.abs(ch) < 0.5 ? "var(--body)" : shade(ch > 0 ? "var(--good)" : "var(--bad)", Math.min(0.9, 0.25 + Math.abs(ch) / 6));
+      tag[s] = signed(ch) + "%";
     }
   }
-  const fat = src.bodyFatPercent, smm = src.skeletalMuscleMass;
-  const label = (s, x, y, anchor) => sg && sg[s]
-    ? `<text x="${x}" y="${y}" text-anchor="${anchor}" class="lbl">${SEG_NAME[s]}</text>
-      <text x="${x}" y="${y + 15}" text-anchor="${anchor}" class="sub">${fmtW(sg[s].kg)} · ${Math.round(sg[s].pct)}%</text>
-      <text x="${x}" y="${y + 29}" text-anchor="${anchor}" class="sub ev-${sg[s].eval}">${EVAL[sg[s].eval]}</text>`
-    : `<text x="${x}" y="${y}" text-anchor="${anchor}" class="lbl">${SEG_NAME[s]}</text>
-      <text x="${x}" y="${y + 15}" text-anchor="${anchor}" class="sub">${z(s) != null ? z(s).toFixed(0) + " Ω" : "–"}</text>
-      ${note[s] ? `<text x="${x}" y="${y + 29}" text-anchor="${anchor}" class="sub">${note[s]}</text>` : ""}`;
-  const lead = (x1, y1, x2, y2) => `<path d="M${x1},${y1} L${x2},${y2}" stroke="var(--muted)" stroke-width="0.8" stroke-dasharray="2 2" fill="none"/>`;
+  return { fill, tag, sg };
+}
+
+function bodyFigure(src, ref, mode) {
+  const { fill, tag, sg } = segColours(src, ref, mode);
+  const headline = mode === "fat" ? ["BODY FAT", src.bodyFatPercent != null ? src.bodyFatPercent.toFixed(1) + "%" : "–"]
+    : mode === "muscle" ? ["SKELETAL MUSCLE", src.skeletalMuscleMass != null ? fmtW(src.skeletalMuscleMass).replace(" ", "") : "–"]
+    : mode === "balance" ? ["LEFT / RIGHT", "lean"] : ["LEAN CHANGE", "30 days"];
+  const t = (x, y, s) => tag[s] ? `<text x="${x}" y="${y}" text-anchor="middle" class="tag">${tag[s]}</text>` : "";
   // Front view: the person's right side is on the viewer's left.
-  return `<svg class="figure" viewBox="0 0 380 470" role="img" aria-label="Body map">
-    <defs><linearGradient id="gloss" x1="0" x2="1"><stop offset="0" stop-color="#fff" stop-opacity=".18"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".06"/></linearGradient></defs>
-    <g transform="translate(30,0)" stroke-linecap="round" stroke-linejoin="round">
+  return `<svg class="figure" viewBox="0 0 320 470" role="img" aria-label="Body map">
+    <g stroke-linecap="round" stroke-linejoin="round">
       <path d="M112,104 Q90,170 80,254" stroke="var(--body-edge)" stroke-width="27" fill="none"/>
       <path d="M208,104 Q230,170 240,254" stroke="var(--body-edge)" stroke-width="27" fill="none"/>
       <path d="M138,272 L130,446" stroke="var(--body-edge)" stroke-width="37" fill="none"/>
@@ -603,149 +615,143 @@ function bodyFigure(src, ref, mode) {
       <path d="M116,94 Q160,82 204,94 L214,150 Q208,205 200,238 L204,272 Q160,288 116,272 L120,238 Q112,205 106,150 Z" fill="${fill.Trunk}" stroke="var(--body-edge)" stroke-width="1.5"/>
       <rect x="150" y="70" width="20" height="18" rx="6" fill="var(--body)" stroke="var(--body-edge)"/>
       <circle cx="160" cy="46" r="27" fill="var(--body)" stroke="var(--body-edge)" stroke-width="1.5"/>
-      <path d="M116,94 Q160,82 204,94 L214,150 Q208,205 200,238 L204,272 Q160,288 116,272 L120,238 Q112,205 106,150 Z" fill="url(#gloss)"/>
     </g>
-    <g transform="translate(30,0)">
-    <g>
-    ${fat != null || sg ? `<rect class="plate" x="116" y="142" width="88" height="${sg ? 124 : 96}" rx="10"/>` : ""}
-    ${fat != null ? `<text x="160" y="160" text-anchor="middle" class="heroK">BODY FAT</text>
-      <text x="160" y="184" text-anchor="middle" class="hero">${fat.toFixed(1)}%</text>` : ""}
-    ${smm != null ? `<text x="160" y="204" text-anchor="middle" class="heroK">SKELETAL MUSCLE</text>
-      <text x="160" y="221" text-anchor="middle" class="lbl">${fmtW(smm)}</text>` : ""}
-    ${sg ? `<text x="160" y="244" text-anchor="middle" class="sub">Trunk ${fmtW(sg.Trunk.kg)} · ${Math.round(sg.Trunk.pct)}%</text>
-      <text x="160" y="258" text-anchor="middle" class="sub ev-${sg.Trunk.eval}">${EVAL[sg.Trunk.eval]}</text>`
-      : `<text x="160" y="252" text-anchor="middle" class="sub">${z("Trunk") != null ? "trunk " + z("Trunk").toFixed(1) + " Ω" : ""}</text>`}
-    </g>
-    </g>
-    ${lead(110, 175, 70, 150)}${label("RightArm", 4, 120, "start")}
-    ${lead(270, 175, 310, 150)}${label("LeftArm", 376, 120, "end")}
-    ${lead(158, 380, 80, 380)}${label("RightLeg", 4, 360, "start")}
-    ${lead(222, 380, 300, 380)}${label("LeftLeg", 376, 360, "end")}
+    <rect class="plate" x="102" y="148" width="116" height="${tag.Trunk ? 82 : 64}" rx="12"/>
+    <text x="160" y="168" text-anchor="middle" class="heroK">${headline[0]}</text>
+    <text x="160" y="196" text-anchor="middle" class="hero">${headline[1]}</text>
+    ${tag.Trunk ? `<text x="160" y="218" text-anchor="middle" class="sub">trunk ${tag.Trunk}</text>` : ""}
+    <text x="20" y="40" class="sub">R</text><text x="300" y="40" text-anchor="end" class="sub">L</text>
+    ${t(52, 190, "RightArm")}${t(268, 190, "LeftArm")}${t(100, 400, "RightLeg")}${t(220, 400, "LeftLeg")}
   </svg>`;
 }
 
-const EVAL = { low: "Low", standard: "Standard", high: "High" };
-const STD_LABEL = { weight: "Weight", fatMass: "Body fat mass", boneMass: "Bone mass", proteinMass: "Protein",
-                    waterMass: "Body water", muscleMass: "Muscle mass", skeletalMuscleMass: "Skeletal muscle" };
-function standardsPanel(r) {
+function segmentList(src, ref, mode) {
+  const { fill, sg } = segColours(src, ref, mode);
+  const order = ["LeftArm", "RightArm", "Trunk", "LeftLeg", "RightLeg"];
+  if (sg) return `<div class="segs">${order.map((s) => `<div class="seg-row"><span class="sw" style="background:${fill[s]}"></span>
+      <span>${SEG_NAME[s]}</span><span class="kg">${fmtW(sg[s].kg, 2)}</span>
+      <span class="pc ev-${sg[s].eval}">${Math.round(sg[s].pct)}%<small>${EVAL[sg[s].eval]}</small></span></div>`).join("")}</div>`;
+  const z = (s) => segZ(src, s, "100kHz");
+  return `<div class="segs">${order.map((s) => {
+    let extra = "";
+    if (mode === "change" && ref) { const ch = leanDiffPct(z(s), segZ(ref, s, "100kHz")); extra = ch == null ? "" : `<span class="${Math.abs(ch) < 0.5 ? "" : ch > 0 ? "down" : "up"}">${signed(ch)}%</span>`; }
+    return `<div class="seg-row"><span class="sw" style="background:${fill[s]}"></span><span>${SEG_NAME[s]}</span>
+      <span class="kg">${z(s) != null ? z(s).toFixed(1) + " Ω" : "–"}</span><span class="pc">${extra}</span></div>`;
+  }).join("")}</div>`;
+}
+
+const STD_LABEL = { weight: "Weight", fatMass: "Fat mass", boneMass: "Bone", proteinMass: "Protein",
+                    waterMass: "Water", muscleMass: "Muscle", skeletalMuscleMass: "Skeletal muscle" };
+function standardsCard(r) {
   if (!r.standards) return "";
   const row = (s) => {
-    const a = s.lo * 0.55, b = s.hi * 1.6, pos = (v) => Math.max(0, Math.min(100, (v - a) / (b - a) * 100));
-    const lo = pos(s.lo), hi = pos(s.hi), v = pos(s.value);
-    return `<div class="rg"><div class="rg-k">${STD_LABEL[s.key]}<span class="muted">${fmtW(s.lo).replace(" " + state.unit, "")}–${fmtW(s.hi)}</span></div>
-      <div class="rg-bar"><span class="z" style="left:0;width:${lo}%"></span><span class="z std" style="left:${lo}%;width:${hi - lo}%"></span><span class="z" style="left:${hi}%;width:${100 - hi}%"></span>
-        <span class="fill ev-bg-${s.eval}" style="width:${v}%"></span></div>
-      <div class="rg-v">${fmtW(s.value)} <span class="ev-${s.eval}">${EVAL[s.eval]}</span></div></div>`;
+    const a = s.lo * 0.6, b = s.hi * 1.45, pos = (v) => Math.max(1, Math.min(99, (v - a) / (b - a) * 100));
+    return `<div class="rg"><span>${STD_LABEL[s.key]}</span>
+      <div class="track"><span class="band" style="left:${pos(s.lo)}%;width:${pos(s.hi) - pos(s.lo)}%"></span><span class="mark" style="left:${pos(s.value)}%"></span></div>
+      <div class="val">${fmtW(s.value)}<span class="ev-${s.eval}">${EVAL[s.eval]}</span></div></div>`;
   };
-  return `<div class="panel"><h2>Against standard <span class="muted">for ${esc(prof(state.me)?.height_cm ?? "")} cm, ${esc(prof(state.me)?.sex ?? "")} · ${r.composition_source === "scale" ? "scale" : "model"} figures</span></h2>
-    ${r.segmental ? `<div class="big" style="margin-bottom:10px">
-      <div><div class="k">Obesity degree</div><div class="v">${r.segmental.obesityDegree}<span>% of standard weight</span></div></div>
-      <div><div class="k">SMI</div><div class="v">${r.segmental.smi}<span>kg/m² arm + leg muscle</span></div></div>
-      ${r.bmr ? `<div><div class="k">BMR</div><div class="v">${r.bmr}<span>kcal</span></div></div>` : ""}</div>` : ""}
-    <div class="rgs">${r.standards.map(row).join("")}</div>
-    <p class="note">Standard ranges as in the Renpho report: weight around BMI 22 (±15 %), body fat mass 12–24 % of that weight for men${prof(state.me)?.sex === "female" ? " (20–32 % for women: an assumption, no women's report to check against yet)" : ""}, the rest ±10 % of their value at standard weight. The green band is Standard.</p></div>`;
-}
-function compBar(label, w, fatPct, smmKg) {
-  if (fatPct == null) return "";
-  const fat = w * fatPct / 100, smm = smmKg ?? 0, other = Math.max(0, w - fat - smm);
-  const pct = (v) => (v / w * 100).toFixed(1) + "%";
-  return `<div class="row"><b>${label}</b><div>
-    <div class="scale-bar" title="Fat ${fat.toFixed(1)} kg · skeletal muscle ${smm.toFixed(1)} kg · other lean ${other.toFixed(1)} kg">
-      <span style="width:${pct(fat)};background:var(--fat)"></span><span style="width:${pct(smm)};background:var(--muscle)"></span><span style="width:${pct(other)};background:var(--lean)"></span></div>
-    <div class="muted" style="margin-top:2px">${fmtW(fat)} fat · ${smmKg != null ? fmtW(smm) + " muscle · " : ""}${fmtW(other)} other lean</div></div></div>`;
+  const p = prof(state.me);
+  return `<section class="card"><div class="card-head"><h2>Against standard</h2><span class="small muted">${esc(p?.height_cm ?? "")} cm · ${esc(p?.sex ?? "")}</span></div>
+    ${r.segmental ? `<div class="stats">
+      <div><div class="k">Obesity degree</div><div class="v">${r.segmental.obesityDegree}<small>%</small></div></div>
+      <div><div class="k">SMI</div><div class="v">${r.segmental.smi}<small>kg/m²</small></div></div>
+      ${r.bmr ? `<div><div class="k">BMR</div><div class="v">${r.bmr}<small>kcal</small></div></div>` : ""}</div>` : ""}
+    ${r.standards.map(row).join("")}
+    <p class="note">The green band is the standard range, as in the Renpho report: weight around BMI 22 (±15 %), fat mass 12–24 % of that weight for men${p?.sex === "female" ? " (20–32 % for women, an assumption)" : ""}, the rest ±10 %.</p></section>`;
 }
 
-function compositionPanel(r, me) {
-  const w = r.weight, sc = r.scale && r.scale.mine ? r.scale : null, mo = r.model?.composition_source === "impedance" ? r.model : null, alt = r.model_alt;
-  const otherScale = r.scale && !r.scale.mine ? r.scale : null;
+function comparison(r, me) {
+  const w = r.weight, sc = r.scale?.mine ? r.scale : null, mo = r.model?.composition_source === "impedance" ? r.model : null, alt = r.model_alt;
   const cols = [];
-  if (sc) cols.push({ name: "Scale (Renpho)", v: sc, primary: r.composition_source === "scale" });
+  if (sc) cols.push({ name: "Scale", v: sc, primary: r.composition_source === "scale" });
   if (mo) cols.push({ name: MODEL_NAMES[mo.reference] || "Model", v: mo, primary: r.composition_source === "impedance" });
   if (alt) cols.push({ name: MODEL_NAMES[alt.reference] || "Model", v: alt, primary: false });
-  if (!cols.length && r.model) cols.push({ name: "Estimate (BMI)", v: r.model, primary: true });
-  const rows = [
-    ["Body fat", "bodyFatPercent", "%", 1], ["Fat mass", "_fatMass", "mass", 1], ["Skeletal muscle", "skeletalMuscleMass", "mass", 1],
-    ["Skeletal muscle %", "skeletalMusclePercent", "%", 1], ["Muscle (all lean soft tissue)", "muscleMass", "mass", 1],
-    ["Water", "waterPercent", "%", 1], ["Protein", "proteinMass", "mass", 1], ["Bone", "boneMass", "mass", 2], ["Visceral fat", "visceralFat", "", 0], ["BMR", "bmr", "kcal", 0],
-  ];
-  const val = (v, key) => key === "_fatMass" ? (v.bodyFatPercent != null ? w * v.bodyFatPercent / 100 : null) : v[key];
-  const table = `<div class="table-wrap"><table><thead><tr><th></th>${cols.map((c) => `<th>${esc(c.name)}${c.primary ? " ★" : ""}</th>`).join("")}</tr></thead><tbody>
-    ${rows.filter(([, k]) => cols.some((c) => val(c.v, k) != null)).map(([label, k, unit, dp]) => {
-      const m = { unit, dp };
-      return `<tr><td>${label}</td>${cols.map((c) => `<td class="${c.primary ? "pri" : ""}">${val(c.v, k) == null ? "–" : fmt(m, val(c.v, k)) + " " + (unit === "mass" ? state.unit : unit)}</td>`).join("")}</tr>`;
-    }).join("")}</tbody></table></div>`;
-  const bars = cols.filter((c) => c.v.bodyFatPercent != null).map((c) => compBar(c.name, w, c.v.bodyFatPercent, c.v.skeletalMuscleMass)).join("");
-  return `<div class="panel"><h2>Composition <span class="muted">${fmtW(w)} · ★ shown first</span></h2>
-      <div class="big">
-        <div><div class="k">Weight</div><div class="v">${fmt({ unit: "mass", dp: 1 }, w)}<span>${state.unit}</span></div></div>
-        ${r.bodyFatPercent != null ? `<div><div class="k">Body fat</div><div class="v">${r.bodyFatPercent.toFixed(1)}<span>%</span></div></div>` : ""}
-        ${r.skeletalMuscleMass != null ? `<div><div class="k">Skeletal muscle</div><div class="v">${fmt({ unit: "mass", dp: 1 }, r.skeletalMuscleMass)}<span>${state.unit}</span></div></div>` : ""}
-        ${r.bmi != null ? `<div><div class="k">BMI</div><div class="v">${r.bmi.toFixed(1)}<span>${bmiCategory(r.bmi, me.body_reference)}</span></div></div>` : ""}
-      </div>
-      ${bars ? `<div class="bars">${bars}</div><div class="keys"><span><i style="background:var(--fat)"></i>Fat</span><span><i style="background:var(--muscle)"></i>Skeletal muscle</span><span><i style="background:var(--lean)"></i>Other lean (organs, water, bone)</span></div>` : ""}
-    </div>
-    <div class="panel"><h2>Scale vs model <span class="muted">same weigh-in</span></h2>${table}
-      <p class="note">${sc ? "The scale's figures are what the Renpho app shows; water, protein, bone and muscle mass are derived from its body fat the way the app does. " : ""}${otherScale ? `The scale computed this weigh-in for ${esc(nameOf(otherScale.computed_for))}'s profile, so its figures aren't used for ${esc(me.name)}. ` : ""}${!sc && !otherScale && me.slug !== state.settings.scale_profile ? `The scale's own analysis appears here when ${esc(me.name)} is the <a href="#" data-tab="settings">scale profile</a>. ` : ""}The model uses published equations with ${esc(me.name)}'s sex and age; the scale's analysis doesn't use either. No method is exact: compare trends within one column.</p></div>`;
+  if (!cols.length) return "";
+  const rows = [["Body fat", "bodyFatPercent", "%", 1], ["Fat mass", "_fat", "mass", 1], ["Skeletal muscle", "skeletalMuscleMass", "mass", 1],
+    ["Muscle", "muscleMass", "mass", 1], ["Water", "waterPercent", "%", 1], ["Protein", "proteinMass", "mass", 1], ["Bone", "boneMass", "mass", 2],
+    ["Visceral fat", "visceralFat", "", 0], ["BMR", "bmr", "kcal", 0]];
+  const val = (v, k) => k === "_fat" ? (v.bodyFatPercent != null ? w * v.bodyFatPercent / 100 : null) : v[k];
+  const bars = cols.filter((c) => c.v.bodyFatPercent != null).map((c) => {
+    const fat = w * c.v.bodyFatPercent / 100, smm = c.v.skeletalMuscleMass ?? 0, other = Math.max(0, w - fat - smm), pc = (x) => (x / w * 100).toFixed(1) + "%";
+    return `<div><div class="lab"><span>${esc(c.name)}${c.primary ? ' <span class="first">shown first</span>' : ""}</span><span class="muted">${c.v.bodyFatPercent.toFixed(1)} % fat</span></div>
+      <div class="bar2"><span style="width:${pc(fat)};background:var(--fat)"></span><span style="width:${pc(smm)};background:var(--muscle)"></span><span style="width:${pc(other)};background:var(--lean)"></span></div></div>`;
+  }).join("");
+  return `<details class="more" open><summary>Scale vs model</summary>
+    <div class="split" style="margin-top:12px">${bars}</div>
+    <div class="keys"><span><i style="background:var(--fat)"></i>Fat</span><span><i style="background:var(--muscle)"></i>Skeletal muscle</span><span><i style="background:var(--lean)"></i>Other lean</span></div>
+    <div class="table-wrap" style="margin-top:14px"><table><thead><tr><th></th>${cols.map((c) => `<th>${esc(c.name)}${c.primary ? ' <span class="first">shown first</span>' : ""}</th>`).join("")}</tr></thead><tbody>
+      ${rows.filter(([, k]) => cols.some((c) => val(c.v, k) != null)).map(([label, k, unit, dp]) =>
+        `<tr><td>${label}</td>${cols.map((c) => `<td class="${c.primary ? "pri" : ""}">${val(c.v, k) == null ? "–" : fmt({ unit, dp }, val(c.v, k)) + " " + (unit === "mass" ? state.unit : unit)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
+    <p class="note">The scale's figures are what the Renpho app shows; they follow height, weight and impedance, not sex or age. The model uses published equations with ${esc(me.name)}'s sex and age. Neither is exact: follow the trend within one column.${r.scale && !r.scale.mine ? ` This weigh-in was computed by the scale for ${esc(nameOf(r.scale.computed_for))}'s profile.` : ""}</p></details>`;
 }
 
-function segmentPanel(src, ref) {
+function rawImpedance(src, ref) {
   const cell = (s) => {
     const z20 = segZ(src, s, "20kHz"), z100 = segZ(src, s, "100kHz");
     const ch = ref ? leanDiffPct(z100, segZ(ref, s, "100kHz")) : null;
-    const cls = ch == null || Math.abs(ch) < 0.5 ? "" : ch > 0 ? "down" : "up";
-    const ratio = z20 && z100 ? (z100 / z20).toFixed(3) : null;
-    return `<div><b>${SEG_NAME[s]}</b>${z20 ?? "–"} / ${z100 ?? "–"} Ω
-      ${ratio ? `<span class="sub">100/20 ratio ${ratio}</span>` : ""}
-      ${ch != null ? `<span class="d sub"><span class="${cls}">${signed(ch)}%</span> lean vs ${dateLabel(ref.ts)}</span>` : ""}</div>`;
+    return `<div><b>${SEG_NAME[s]}</b><span class="z">${z20 ?? "–"} / ${z100 ?? "–"}</span> Ω
+      ${z20 && z100 ? `<div class="muted">ratio ${(z100 / z20).toFixed(3)}${ch != null ? ` · <span class="${Math.abs(ch) < 0.5 ? "" : ch > 0 ? "down" : "up"}">${signed(ch)}%</span> lean` : ""}</div>` : ""}</div>`;
   };
-  const bal = (a, b, name) => {
-    const d = leanDiffPct(segZ(src, a, "100kHz"), segZ(src, b, "100kHz"));
-    if (d == null) return "";
-    const side = Math.abs(d) < 1 ? "balanced" : d < 0 ? `right ${Math.abs(d).toFixed(1)}% leaner` : `left ${Math.abs(d).toFixed(1)}% leaner`;
-    return `<div><b>${name} balance</b>${side}</div>`;
-  };
-  const upper = segZ(src, "LeftArm", "100kHz") && segZ(src, "LeftLeg", "100kHz")
-    ? `<div><b>Arms vs legs</b>${((segZ(src, "LeftArm", "100kHz") + segZ(src, "RightArm", "100kHz")) / (segZ(src, "LeftLeg", "100kHz") + segZ(src, "RightLeg", "100kHz"))).toFixed(2)}<span class="sub">arm / leg impedance</span></div>` : "";
   const m = src.model || {};
-  const wb = m.impedance50kHz ? `<div><b>Whole body (50 kHz)</b>${m.impedance50kHz} Ω<span class="sub">arm + trunk + leg</span></div>
-    <div><b>100 / 20 kHz ratio</b>${m.impedanceRatio}<span class="sub">lower = more cell mass</span></div>` : "";
-  return `<div class="panel"><h2>Segment impedance <span class="muted">${dateLabel(src.ts, true)} · 20 / 100 kHz</span></h2>
-    <div class="segments">${SEGMENTS.map(cell).join("")}${bal("LeftArm", "RightArm", "Arm")}${bal("LeftLeg", "RightLeg", "Leg")}${upper}${wb}</div>
-    <p class="note">Raw values exactly as the scale sent them. The 100/20 kHz ratio drops as cell mass grows relative to fluid outside cells; use it as a trend, not a diagnosis.</p></div>`;
+  return `<details class="more"><summary>Raw impedance</summary>
+    <div class="zgrid" style="margin-top:12px">${SEGMENTS.map(cell).join("")}
+      ${m.impedance50kHz ? `<div><b>Whole body, 50 kHz</b><span class="z">${m.impedance50kHz}</span> Ω<div class="muted">ratio ${m.impedanceRatio}</div></div>` : ""}</div>
+    <p class="note">20 / 100 kHz exactly as the scale sent them. A lower 100/20 ratio means more cell mass relative to fluid outside cells${ref ? `; lean change is against ${dateLabel(ref.ts)}` : ""}. Hydration moves impedance, so compare weigh-ins taken at the same time of day.</p></details>`;
+}
+
+function bodyTab(me) {
+  const scan = lastWith("impedanceTrunk100kHz");
+  if (!scan) return `<div class="card empty"><h2>No body scan yet</h2><p>Step on barefoot, hold the handle with both hands and stay on until the scale shows the full result,
+    about 15 seconds after the weight settles. The scale then sends ten impedances: trunk, both arms and both legs, at 20 and 100 kHz.</p></div>`;
+  const ref = refFor(scan);
+  const modes = [["muscle", "Muscle"], ["fat", "Fat"], ["balance", "Left / right"]];
+  if (ref) modes.push(["change", "30 days"]);
+  let mode = modes.some(([m]) => m === state.bodyMode) ? state.bodyMode : "muscle";
+  if ((mode === "muscle" || mode === "fat") && !scan.segmental) mode = "balance";
+  const notes = {
+    muscle: "Muscle per segment and % of standard, as in the Renpho report (Low under 90 %, High over 110 %). Each left/right pair is split by its measured impedance.",
+    fat: "Fat per segment and % of standard (Low under 80 %). Impedance can't locate fat, so this is the app's split of total fat; the leaner side gets a little less.",
+    balance: "Each limb against the other side, from impedance at 100 kHz. The percentage is how much leaner the shaded side is.",
+    change: ref ? `Lean tissue per segment against ${dateLabel(ref.ts)}: green more, red less.` : "",
+  };
+  return `<div class="cols">
+      <section class="card"><div class="card-head"><h2>Body map</h2><span class="small muted">${dateLabel(scan.ts, true)}</span></div>
+        <div class="seg" role="group" aria-label="Show">${modes.map(([m, l]) => `<button data-bmode="${m}" class="${mode === m ? "on" : ""}" ${(m === "muscle" || m === "fat") && !scan.segmental ? "disabled" : ""}>${l}</button>`).join("")}</div>
+        <div class="bodymap">${bodyFigure(scan, ref, mode)}${segmentList(scan, ref, mode)}</div>
+        <p class="note">${notes[mode]}${scan.segmental ? "" : " Add height and sex to the profile for the muscle and fat views."}</p>
+        ${comparison(scan, me)}${rawImpedance(scan, ref)}</section>
+      <div>${standardsCard(scan)}</div>
+    </div>`;
 }
 
 // ---------- history ----------
 function historyTab(me) {
-  const rowsDesc = [...state.rows].reverse();
-  const anyScale = rowsDesc.some((r) => r.scale?.mine), anyModel = rowsDesc.some((r) => r.model?.composition_source === "impedance");
-  const body = rowsDesc.map((r) => {
-    const how = r.assign_method === "manual" ? "claimed" : "auto " + Math.round((r.confidence ?? 0) * 100) + "%";
-    return `<tr><td><label class="pick"><input type="checkbox" data-sel="${r.id}" ${state.sel.has(r.id) ? "checked" : ""} aria-label="Select weigh-in">${dateLabel(r.ts, true)}</label></td><td class="pri">${fmtW(r.weight)}</td>
-      ${anyScale ? `<td>${r.scale?.mine ? r.scale.bodyFatPercent.toFixed(1) : "–"}</td>` : ""}
-      ${anyModel ? `<td>${r.model?.composition_source === "impedance" ? r.model.bodyFatPercent.toFixed(1) : "–"}</td>` : ""}
-      ${!anyScale && !anyModel ? `<td>${r.bodyFatPercent != null ? r.bodyFatPercent.toFixed(1) : "–"}</td>` : ""}
-      <td>${r.skeletalMuscleMass != null ? fmtW(r.skeletalMuscleMass) : "–"}</td>
-      <td>${r.visceralFat ?? "–"}</td><td>${r.bmi != null ? r.bmi.toFixed(1) : "–"}</td>
-      <td>${r.impedanceTrunk100kHz ? "✓" : ""}</td>
-      <td><span class="badge">${how}</span></td><td>${assignSelect(r, true)}</td></tr>`;
-  }).join("");
-  return `${inboxPanel(15)}
-    <div class="panel"><h2>${esc(me.name)}'s weigh-ins <span class="muted">${state.rows.length} in range · <a href="/api/export.csv?days=all&profile=${encodeURIComponent(state.me)}">Download CSV</a></span></h2>
-      ${rowsDesc.length ? `<div class="bulk"><span class="muted" id="selCount">${selText()}</span>
-        <button class="danger" id="delSel" ${state.sel.size ? "" : "disabled"}>Delete selected</button></div>
-        <div class="table-wrap"><table>
-        <thead><tr><th><label class="pick"><input type="checkbox" id="selAll" ${rowsDesc.every((r) => state.sel.has(r.id)) ? "checked" : ""} aria-label="Select all in range">Date</label></th><th>Weight</th>${anyScale ? "<th>Fat % (scale)</th>" : ""}${anyModel ? "<th>Fat % (model)</th>" : ""}${!anyScale && !anyModel ? "<th>Fat %</th>" : ""}
-          <th>Skel. muscle</th><th>Visceral</th><th>BMI</th><th>Scan</th><th>How</th><th></th></tr></thead>
-        <tbody>${body}</tbody></table></div>
-        <p class="note">Pick the range at the top (7d … All), tick "Date" to select everything in it, then untick what to keep. Deleting is permanent here; the backup in ble-scale-sync's measurements.jsonl keeps them, so a re-import would bring them back.</p>` : `<p class="muted">No weigh-ins in this range.</p>`}</div>`;
+  const rows = [...state.rows].reverse();
+  const anyScale = rows.some((r) => r.scale?.mine), anyModel = rows.some((r) => r.model?.composition_source === "impedance");
+  const inbox = [...state.unclaimed];
+  return `${inbox.length ? `<section class="card"><div class="card-head"><h2>Needs a name</h2><span class="small muted">Tap "That's me" or pick who it was</span></div>
+      <div class="list">${inbox.map(weighInRow).join("")}</div></section>` : ""}
+    <section class="card"><div class="card-head"><h2>${esc(me?.name ?? "")}'s weigh-ins</h2>
+      <div class="seg" role="group" aria-label="Range">${RANGES.map(([d, l]) => `<button data-days="${d}" class="${state.days === d ? "on" : ""}">${l}</button>`).join("")}</div></div>
+      ${rows.length ? `<div class="bulk"><span class="small muted" id="selCount">${selText()}</span>
+          <span style="display:flex;gap:8px"><a class="btn" href="/api/export.csv?days=all&profile=${encodeURIComponent(state.me)}">Export CSV</a>
+          <button class="btn danger" id="delSel" ${state.sel.size ? "" : "disabled"}>Delete</button></span></div>
+        <div class="table-wrap"><table><thead><tr>
+          <th><label class="pick"><input type="checkbox" id="selAll" ${rows.every((r) => state.sel.has(r.id)) ? "checked" : ""} aria-label="Select all">Date</label></th>
+          <th>Weight</th>${anyScale ? "<th>Fat · scale</th>" : ""}${anyModel ? "<th>Fat · model</th>" : ""}${!anyScale && !anyModel ? "<th>Fat</th>" : ""}
+          <th>Skel. muscle</th><th>BMI</th><th></th><th></th></tr></thead>
+        <tbody>${rows.map((r) => `<tr><td><label class="pick"><input type="checkbox" data-sel="${r.id}" ${state.sel.has(r.id) ? "checked" : ""} aria-label="Select">${new Date(r.ts).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</label></td>
+          <td class="pri">${fmtW(r.weight)}</td>
+          ${anyScale ? `<td>${r.scale?.mine ? r.scale.bodyFatPercent.toFixed(1) + " %" : "–"}</td>` : ""}
+          ${anyModel ? `<td>${r.model?.composition_source === "impedance" ? r.model.bodyFatPercent.toFixed(1) + " %" : "–"}</td>` : ""}
+          ${!anyScale && !anyModel ? `<td>${r.bodyFatPercent != null ? r.bodyFatPercent.toFixed(1) + " %" : "–"}</td>` : ""}
+          <td>${r.skeletalMuscleMass != null ? fmtW(r.skeletalMuscleMass) : "–"}</td><td>${r.bmi != null ? r.bmi.toFixed(1) : "–"}</td>
+          <td><span class="pill">${r.assign_method === "manual" ? "claimed" : "auto " + Math.round((r.confidence ?? 0) * 100) + "%"}</span></td>
+          <td>${assignSelect(r, true)}</td></tr>`).join("")}</tbody></table></div>
+        <p class="note">Tick "Date" to select everything in the range. Deleting is permanent here; ble-scale-sync's measurements.jsonl keeps a copy, so a re-import would bring them back.</p>`
+      : `<p class="muted">No weigh-ins in this range.</p>`}</section>`;
 }
-function selText() { return state.sel.size ? `${state.sel.size} selected` : "Tick weigh-ins to delete several at once"; }
-async function deleteIds(ids) {
-  const res = await api("/api/measurements/delete", { method: "POST", body: JSON.stringify({ ids }) });
-  if (!res.ok) alert("Could not delete: " + ((await res.json().catch(() => ({}))).error || res.status));
-  state.sel.clear();
-  load();
-}
+function selText() { return state.sel.size ? `${state.sel.size} selected` : "Select weigh-ins to delete several at once"; }
 
 // ---------- settings ----------
 function settingsTab() {
@@ -753,34 +759,31 @@ function settingsTab() {
   const people = state.profiles.map((p) => {
     const age = ageOf(p.birth_date);
     const bits = [p.height_cm && `${p.height_cm} cm`, age != null && `${age} y`, p.sex, p.athlete && "athlete",
-                  p.body_reference === "east_asian" && "East Asian equations", `shows ${p.primary_source === "model" ? "model" : "scale"} first`].filter(Boolean);
-    return `<div class="prow">${avatar(p, "lg")}<div class="info"><b>${esc(p.name)} ${p.slug === s.scale_profile ? '<span class="badge ok">scale profile</span>' : ""}</b>
-      <span class="muted">${esc(bits.join(" · "))} · ${p.count} weigh-ins</span></div><button data-edit="${esc(p.slug)}">Edit</button></div>`;
+                  p.body_reference === "east_asian" && "East Asian", `${p.primary_source === "model" ? "model" : "scale"} first`].filter(Boolean);
+    return `<div class="person">${avatar(p, "lg")}<div class="info"><b>${esc(p.name)} ${p.slug === s.scale_profile ? '<span class="pill good">scale profile</span>' : ""}</b>
+      <span class="small muted">${esc(bits.join(" · "))} · ${p.count} weigh-ins</span></div><button class="btn" data-edit="${esc(p.slug)}">Edit</button></div>`;
   }).join("");
   const ready = (p) => p.height_cm && p.birth_date && p.sex;
-  const opts = `<option value="">Not managed (use ble-scale-sync's config.yaml as is)</option>` + state.profiles.map((p) =>
-    `<option value="${esc(p.slug)}" ${p.slug === s.scale_profile ? "selected" : ""} ${ready(p) ? "" : "disabled"}>${esc(p.name)}${ready(p) ? "" : " (needs height, birth date and sex)"}</option>`).join("");
+  const opts = `<option value="">Not managed (keep config.yaml as it is)</option>` + state.profiles.map((p) =>
+    `<option value="${esc(p.slug)}" ${p.slug === s.scale_profile ? "selected" : ""} ${ready(p) ? "" : "disabled"}>${esc(p.name)}${ready(p) ? "" : " (needs height, birth date, sex)"}</option>`).join("");
   const cls = !s.scale_profile ? "" : sync.ok === false ? "bad" : sync.warning ? "warn" : "ok";
-  const status = s.scale_profile || sync.message ? `<div class="callout ${cls}">${esc(sync.message || "")}${sync.warning ? "<br>" + esc(sync.warning) : ""}
-      ${sync.checked ? `<div class="muted">Checked ${esc(relTime(sync.checked))}</div>` : ""}</div>` : "";
-  const sent = sp && sync.profile_byte ? `<dl class="kv">
-      <dt>Height</dt><dd>${sync.height_cm} cm</dd>
-      <dt>Sex and age</dt><dd>${esc(sync.sex)}, ${sync.age} → profile byte <code>0x${esc(sync.profile_byte.toUpperCase())}</code></dd>
-      <dt>Last weight</dt><dd>${esc(nameOf(sp.slug))}'s latest weigh-in (the scale uses it as a starting point)</dd>
-      <dt>Slot</dt><dd>guest slot 09, so your Renpho app user (slot 01) is never overwritten</dd></dl>` : "";
-  return `<div class="panel"><h2>People <button data-add>+ Add person</button></h2>
-      ${people ? `<div class="plist">${people}</div>` : `<p class="muted">No profiles yet.</p>`}</div>
-    <div class="panel"><h2>Scale profile <span class="muted">who the Renpho scale computes its own analysis for</span></h2>
-      <p class="note" style="margin-top:0">At the start of every weigh-in ble-scale-sync sends the scale one profile. The scale computes its body fat, skeletal muscle and visceral fat for that profile, before anyone knows who is standing on it. Pick the person who should get the scale's own analysis; everyone else gets Scale Hub's model.</p>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-        <select id="scaleProfile" style="flex:1;min-width:220px">${opts}</select>
-        <button id="syncNow" ${s.scale_profile ? "" : "disabled"}>Sync now</button></div>
-      ${status}${sent}
-      <p class="note">Scale Hub writes this into <code>${esc(sync.config || "~/ble-scale-sync/config.yaml")}</code> (first user's name, height, birth date, sex, athlete flag and <code>ble.rmsc04_profile_byte</code>), and checks it again every 6 hours, so the byte follows birthdays. ble-scale-sync reloads it before its next scan. The user's slug is left alone, so a Garmin login stays connected.</p></div>
-    <div class="panel"><h2>How the numbers are made</h2>
-      <h3>Scale (Renpho)</h3><p class="note" style="margin-top:0">The R-MSC04's own result for the scale profile, the same numbers the Renpho app shows. It depends on weight, height and the ten impedances; tests with the Renpho app showed it does not change with sex or age.</p>
-      <h3>Model</h3><p class="note" style="margin-top:0">Scale Hub turns the scale's segment impedances into a whole-body impedance at 50 kHz, then uses published equations: fat-free mass from NHANES III (Chumlea 2002) or, with the East Asian reference, Chen 2016; skeletal muscle from Janssen 2000; BMR from Katch-McArdle. These use height, weight, age and sex. Expect about ±3–4 % body fat against a lab method.</p>
-      <h3>Estimate</h3><p class="note" style="margin-top:0">Weigh-ins without a body scan get a BMI-based estimate (Deurenberg), and only for people who never had a scan.</p></div>`;
+  return `<section class="card"><div class="card-head"><h2>People</h2><button class="btn" data-add>Add person</button></div>
+      ${people ? `<div class="people">${people}</div>` : `<p class="muted">No profiles yet.</p>`}</section>
+    <section class="card"><div class="card-head"><h2>Scale profile</h2></div>
+      <p class="small muted" style="margin:0 0 14px">The scale computes its own analysis for one profile, sent at the start of every weigh-in. Pick who gets it; everyone else gets Scale Hub's model.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <select id="scaleProfile" class="plain" style="flex:1;min-width:220px;max-width:none;padding:9px 30px 9px 14px;font-size:14px">${opts}</select>
+        <button class="btn" id="syncNow" ${s.scale_profile ? "" : "disabled"}>Sync now</button></div>
+      ${s.scale_profile || sync.message ? `<div class="callout ${cls}">${esc(sync.message || "")}${sync.warning ? "<br>" + esc(sync.warning) : ""}${sync.checked ? `<span class="muted"> · checked ${esc(relTime(sync.checked))}</span>` : ""}</div>` : ""}
+      ${sp && sync.profile_byte ? `<dl class="kv"><dt>Height</dt><dd>${sync.height_cm} cm</dd>
+        <dt>Sex, age</dt><dd>${esc(sync.sex)}, ${sync.age} · profile byte <code>0x${esc(sync.profile_byte.toUpperCase())}</code></dd>
+        <dt>Slot</dt><dd>guest slot 09, so your Renpho app user is never overwritten</dd></dl>` : ""}
+      <details class="more"><summary>What gets written</summary><p class="note">Scale Hub edits the first user in <code>${esc(sync.config || "~/ble-scale-sync/config.yaml")}</code>: name, height, birth date, sex, athlete flag and last weight, plus <code>ble.rmsc04_profile_byte</code> (0x80 for male + age). It checks again every 6 hours, so the byte follows birthdays, and ble-scale-sync reloads before its next scan. Comments, exporters, other users and the slug stay as they are.</p></details></section>
+    <section class="card"><div class="card-head"><h2>How the numbers are made</h2></div>
+      <div class="kv" style="margin-top:0;grid-template-columns:max-content minmax(0,1fr)">
+        <dt>Scale</dt><dd class="small">The R-MSC04's own result for the scale profile, as the Renpho app shows it. Water, protein, bone, muscle, BMR and per-limb figures are derived the way the app does it.</dd>
+        <dt>Model</dt><dd class="small">Published equations from the ten impedances, with height, weight, age and sex: NHANES III or Chen 2016 for fat-free mass, Janssen 2000 for skeletal muscle. About ±3–4 % body fat.</dd>
+        <dt>Estimate</dt><dd class="small">BMI-based (Deurenberg) for weigh-ins without a body scan, only for people who never had one.</dd></div></section>`;
 }
 async function saveSettings(body) {
   const res = await api("/api/settings", { method: "POST", body: JSON.stringify(body) });
@@ -795,54 +798,50 @@ function drawChart(m) {
   if (!svg || !m) return;
   const pts = state.rows.filter((r) => r[m.key] != null).map((r) => ({ t: new Date(r.ts).getTime(), v: conv(m, r[m.key]), r }));
   const alt = m.both ? state.rows.map((r) => ({ t: new Date(r.ts).getTime(), v: secondary(r, m.key) })).filter((p) => p.v != null).map((p) => ({ ...p, v: conv(m, p.v) })) : [];
-  const W = svg.clientWidth || 800, H = svg.clientHeight || 280, P = { l: 44, r: 12, t: 12, b: 26 };
+  const W = svg.clientWidth || 600, H = svg.clientHeight || 220, P = { l: 34, r: 6, t: 10, b: 22 };
   svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
-  if (!pts.length) { svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle">No ${m.label.toLowerCase()} readings in this range</text>`; return; }
-
+  if (!pts.length) { svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle">No readings in this range</text>`; return; }
   const all = [...pts, ...alt];
   let t0 = Math.min(...all.map((p) => p.t)), t1 = Math.max(...all.map((p) => p.t));
   if (t1 - t0 < 864e5) { t0 -= 432e5; t1 += 432e5; }
   let v0 = Math.min(...all.map((p) => p.v)), v1 = Math.max(...all.map((p) => p.v));
-  const pad = Math.max((v1 - v0) * 0.15, m.unit === "%" ? 0.5 : 0.3);
+  const pad = Math.max((v1 - v0) * 0.18, m.unit === "%" ? 0.5 : 0.3);
   v0 -= pad; v1 += pad;
   const x = (t) => P.l + ((t - t0) / (t1 - t0)) * (W - P.l - P.r);
   const y = (v) => H - P.b - ((v - v0) / (v1 - v0)) * (H - P.t - P.b);
-
   let g = "";
-  for (let i = 0; i <= 4; i++) {
-    const v = v0 + ((v1 - v0) * i) / 4, yy = y(v);
-    g += `<line x1="${P.l}" x2="${W - P.r}" y1="${yy}" y2="${yy}" stroke="var(--grid)"/>`;
+  for (let i = 0; i <= 3; i++) {
+    const v = v0 + ((v1 - v0) * i) / 3, yy = y(v);
+    g += `<line x1="${P.l}" x2="${W - P.r}" y1="${yy}" y2="${yy}" stroke="var(--line)" ${i ? 'stroke-dasharray="2 4"' : ""}/>`;
     g += `<text x="${P.l - 6}" y="${yy + 4}" text-anchor="end">${v.toFixed(m.dp === 0 ? 0 : 1)}</text>`;
   }
-  const ticks = Math.min(6, Math.max(2, Math.floor((W - P.l) / 110)));
+  const ticks = Math.min(5, Math.max(2, Math.floor((W - P.l) / 110)));
   for (let i = 0; i <= ticks; i++) {
     const t = t0 + ((t1 - t0) * i) / ticks;
-    g += `<text x="${x(t)}" y="${H - 6}" text-anchor="${i === 0 ? "start" : i === ticks ? "end" : "middle"}">${dateLabel(new Date(t).toISOString())}</text>`;
+    g += `<text x="${x(t)}" y="${H - 4}" text-anchor="${i === 0 ? "start" : i === ticks ? "end" : "middle"}">${dateLabel(new Date(t).toISOString())}</text>`;
   }
   const line = (arr) => arr.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`).join("");
-  if (alt.length > 1) g += `<path d="${line(alt)}" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="5 4"/>`;
-  g += alt.map((p) => `<circle cx="${x(p.t)}" cy="${y(p.v)}" r="2.5" fill="var(--muted)"/>`).join("");
-  // 7-reading moving average smooths day-to-day water swings.
+  if (alt.length > 1) g += `<path d="${line(alt)}" fill="none" stroke="var(--faint)" stroke-width="1.5" stroke-dasharray="4 4"/>`;
   const avg = pts.map((p, i) => { const s = pts.slice(Math.max(0, i - 6), i + 1); return { t: p.t, v: s.reduce((a, b) => a + b.v, 0) / s.length }; });
-  const area = line(avg) + `L${x(avg[avg.length - 1].t)},${H - P.b}L${x(avg[0].t)},${H - P.b}Z`;
-  g += `<path d="${area}" fill="var(--pc)" fill-opacity="0.12"/>`;
-  if (pts.length > 1) g += `<path d="${line(avg)}" fill="none" stroke="var(--pc)" stroke-width="2.5" stroke-linejoin="round"/>`;
-  g += pts.map((p) => `<circle cx="${x(p.t)}" cy="${y(p.v)}" r="${pts.length > 120 ? 2 : 3.5}" fill="var(--card)" stroke="var(--pc)" stroke-width="1.5" ${p.r.assign_method === "manual" ? "" : 'stroke-dasharray="2 1.5"'}/>`).join("");
-  g += `<line id="hover" y1="${P.t}" y2="${H - P.b}" stroke="var(--muted)" stroke-dasharray="3 3" visibility="hidden"/>`;
+  g += `<defs><linearGradient id="fade" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--pc)" stop-opacity=".18"/><stop offset="1" stop-color="var(--pc)" stop-opacity="0"/></linearGradient></defs>`;
+  g += `<path d="${line(avg)}L${x(avg[avg.length - 1].t)},${H - P.b}L${x(avg[0].t)},${H - P.b}Z" fill="url(#fade)"/>`;
+  g += pts.map((p) => `<circle cx="${x(p.t)}" cy="${y(p.v)}" r="${pts.length > 90 ? 1.5 : 2.5}" fill="var(--pc)" opacity=".35"/>`).join("");
+  if (pts.length > 1) g += `<path d="${line(avg)}" fill="none" stroke="var(--pc)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`;
+  const lp = pts[pts.length - 1];
+  g += `<circle cx="${x(lp.t)}" cy="${y(lp.v)}" r="4.5" fill="var(--surface)" stroke="var(--pc)" stroke-width="2.5"/>`;
+  g += `<line id="hover" y1="${P.t}" y2="${H - P.b}" stroke="var(--faint)" stroke-dasharray="3 3" visibility="hidden"/>`;
   svg.innerHTML = g;
-
   const tip = $("#tip"), hover = svg.querySelector("#hover");
   svg.onpointermove = (e) => {
-    const rect = svg.getBoundingClientRect();
-    const px = ((e.clientX - rect.left) / rect.width) * W;
+    const rect = svg.getBoundingClientRect(), px = ((e.clientX - rect.left) / rect.width) * W;
     let best = 0;
     pts.forEach((p, i) => { if (Math.abs(x(p.t) - px) < Math.abs(x(pts[best].t) - px)) best = i; });
     const p = pts[best], sec = m.both ? secondary(p.r, m.key) : null;
     hover.setAttribute("x1", x(p.t)); hover.setAttribute("x2", x(p.t)); hover.setAttribute("visibility", "visible");
     tip.style.display = "block";
-    tip.textContent = `${dateLabel(p.r.ts, true)} · ${p.v.toFixed(m.dp)} ${unitLabel(m)}${sec != null ? ` (${secondaryName(p.r)} ${conv(m, sec).toFixed(m.dp)})` : ""}`;
+    tip.textContent = `${dateLabel(p.r.ts, true)} · ${p.v.toFixed(m.dp)} ${unitLabel(m)}${sec != null ? ` (${secondaryName(p.r).toLowerCase()} ${conv(m, sec).toFixed(m.dp)})` : ""}`;
     tip.style.left = Math.min(e.clientX + 12, innerWidth - tip.offsetWidth - 8) + "px";
-    tip.style.top = e.clientY - 34 + "px";
+    tip.style.top = e.clientY - 36 + "px";
   };
   svg.onpointerleave = () => { tip.style.display = "none"; hover.setAttribute("visibility", "hidden"); };
 }
@@ -851,9 +850,10 @@ function drawChart(m) {
 const dlg = $("#dlg"), pform = $("#pform");
 let editing = null, pickedColor = null;
 function openProfile(slug) {
+  closeMenu();
   editing = slug ? prof(slug) : null;
   pform.reset(); $("#perr").textContent = "";
-  $("#dlg-title").innerHTML = editing ? `Edit ${esc(editing.name)} <span class="muted">ID: ${esc(editing.slug)}</span>` : "Add person";
+  $("#dlg-title").textContent = editing ? `Edit ${editing.name}` : "Add person";
   $("#pdelete").style.display = editing ? "" : "none";
   const used = new Set(state.profiles.map((p) => p.color));
   pickedColor = editing?.color || PALETTE.find((c) => !used.has(c)) || PALETTE[0];
@@ -874,9 +874,8 @@ $("#pcancel").onclick = () => dlg.close();
 pform.onsubmit = async (e) => {
   e.preventDefault();
   const f = pform.elements;
-  const body = { name: f.name.value.trim(), color: pickedColor, height_cm: f.height_cm.value, birth_date: f.birth_date.value,
-                 sex: f.sex.value, start_weight: f.start_weight.value, athlete: f.athlete.checked,
-                 body_reference: f.body_reference.value, primary_source: f.primary_source.value };
+  const body = { name: f.name.value.trim(), color: pickedColor, height_cm: f.height_cm.value, birth_date: f.birth_date.value, sex: f.sex.value,
+                 start_weight: f.start_weight.value, athlete: f.athlete.checked, body_reference: f.body_reference.value, primary_source: f.primary_source.value };
   const res = await api(editing ? `/api/profiles/${editing.slug}` : "/api/profiles", { method: "POST", body: JSON.stringify(body) });
   const data = await res.json();
   if (!res.ok) { $("#perr").textContent = data.error || "Could not save"; return; }
@@ -885,7 +884,7 @@ pform.onsubmit = async (e) => {
   load();
 };
 $("#pdelete").onclick = async () => {
-  if (!editing || !confirm(`Delete ${editing.name}? Their weigh-ins are kept and become unclaimed.`)) return;
+  if (!editing || !confirm(`Delete ${editing.name}? Their weigh-ins are kept and become unassigned.`)) return;
   await api(`/api/profiles/${editing.slug}`, { method: "DELETE" });
   dlg.close();
   if (state.me === editing.slug) { state.me = ""; localSet("me", ""); }
@@ -893,64 +892,60 @@ $("#pdelete").onclick = async () => {
 };
 
 // ---------- events ----------
+const closeMenu = () => $("#menu").classList.remove("open");
 document.addEventListener("click", (e) => {
   const t = e.target;
+  if (t.closest("#who")) { if (!state.profiles.length) openProfile(null); else $("#menu").classList.toggle("open"); return; }
+  if (!t.closest("#menu")) closeMenu();
   const edit = t.closest("[data-edit]");
-  if (edit) { e.preventDefault(); e.stopPropagation(); openProfile(edit.dataset.edit); return; }
+  if (edit) { e.preventDefault(); openProfile(edit.dataset.edit); return; }
   if (t.closest("[data-add]")) { openProfile(null); return; }
   const tab = t.closest("[data-tab]");
   if (tab) { e.preventDefault(); state.tab = tab.dataset.tab; localSet("tab", state.tab); render(); scrollTo({ top: 0 }); return; }
   const me = t.closest("[data-me]");
-  if (me) { state.me = me.dataset.me; localSet("me", state.me); state.sel.clear(); load(); return; }
+  if (me) { closeMenu(); state.me = me.dataset.me; localSet("me", state.me); state.sel.clear(); load(); return; }
   const cl = t.closest("[data-claim]");
   if (cl) { claim(cl.dataset.claim, state.me); return; }
   const card = t.closest("[data-metric]");
-  if (card) { state.metric = card.dataset.metric; localSet("metric", state.metric); render(); return; }
+  if (card) { e.preventDefault(); state.metric = card.dataset.metric; localSet("metric", state.metric); render(); return; }
   const bm = t.closest("[data-bmode]");
   if (bm) { state.bodyMode = bm.dataset.bmode; localSet("bodyMode", state.bodyMode); render(); return; }
+  const dd = t.closest("[data-days]");
+  if (dd) { state.days = dd.dataset.days; localSet("days", state.days); state.sel.clear(); load(); return; }
+  if (t.closest("#unit")) { state.unit = state.unit === "kg" ? "lb" : "kg"; localSet("unit", state.unit); render(); return; }
   if (t.closest("#syncNow")) { saveSettings({}); return; }
   if (t.closest("#delSel")) {
     const rows = state.rows.filter((r) => state.sel.has(r.id));
     if (!rows.length) return;
-    const total = rows.length === 1 ? "this weigh-in" : `these ${rows.length} weigh-ins`;
+    const what = rows.length === 1 ? "this weigh-in" : `these ${rows.length} weigh-ins`;
     const span = rows.length > 1 ? ` (${dateLabel(rows[0].ts)} – ${dateLabel(rows[rows.length - 1].ts)})` : "";
-    if (confirm(`Delete ${total} for ${nameOf(state.me)}${span}? This can't be undone.`)) deleteIds(rows.map((r) => r.id));
-    return;
-  }
-  const rb = t.closest("#range button");
-  if (rb) {
-    state.days = rb.dataset.d; localSet("days", state.days); state.sel.clear();
-    document.querySelectorAll("#range button").forEach((b) => b.classList.toggle("on", b === rb));
-    load();
+    if (confirm(`Delete ${what} for ${nameOf(state.me)}${span}? This can't be undone.`)) deleteIds(rows.map((r) => r.id));
   }
 });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMenu(); });
 document.addEventListener("change", (e) => {
-  if (e.target.id === "scaleProfile") { saveSettings({ scale_profile: e.target.value || null }); return; }
-  if (e.target.id === "selAll" || e.target.dataset.sel) {
-    if (e.target.id === "selAll") state.rows.forEach((r) => e.target.checked ? state.sel.add(r.id) : state.sel.delete(r.id));
-    else e.target.checked ? state.sel.add(+e.target.dataset.sel) : state.sel.delete(+e.target.dataset.sel);
-    if (e.target.id === "selAll") document.querySelectorAll("[data-sel]").forEach((c) => { c.checked = e.target.checked; });
-    else $("#selAll").checked = state.rows.every((r) => state.sel.has(r.id));
+  const el = e.target;
+  if (el.id === "scaleProfile") { saveSettings({ scale_profile: el.value || null }); return; }
+  if (el.id === "selAll" || el.dataset.sel) {
+    if (el.id === "selAll") { state.rows.forEach((r) => el.checked ? state.sel.add(r.id) : state.sel.delete(r.id)); document.querySelectorAll("[data-sel]").forEach((c) => { c.checked = el.checked; }); }
+    else { el.checked ? state.sel.add(+el.dataset.sel) : state.sel.delete(+el.dataset.sel); $("#selAll").checked = state.rows.every((r) => state.sel.has(r.id)); }
     $("#selCount").textContent = selText(); $("#delSel").disabled = !state.sel.size;
     return;
   }
-  const sel = e.target.closest("[data-assign]");
+  const sel = el.closest("[data-assign]");
   if (!sel || !sel.value) return;
   const id = sel.dataset.assign, v = sel.value;
   if (v === "_auto") release(id);
   else if (v === "_delete") {
     if (confirm(`Delete the ${fmtW(+sel.dataset.w)} weigh-in from ${dateLabel(sel.dataset.ts, true)}? This can't be undone.`)) deleteIds([+id]);
     else sel.value = "";
-  }
-  else claim(id, v === "_guest" ? null : v);
+  } else claim(id, v === "_guest" ? null : v);
 });
-$("#unit").onchange = (e) => { state.unit = e.target.value; localSet("unit", state.unit); render(); };
-$("#unit").value = state.unit;
+addEventListener("scroll", () => $("#bar").classList.toggle("scrolled", scrollY > 4), { passive: true });
 if (!TABS.some(([id]) => id === state.tab)) state.tab = "overview";
-document.querySelectorAll("#range button").forEach((b) => b.classList.toggle("on", b.dataset.d === state.days));
-let resizeT; addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(render, 150); });
-setInterval(() => { if (!document.hidden && !dlg.open && state.tab !== "settings" && !state.sel.size) load(); }, 30000);
-load().catch((err) => { $("#status").textContent = "cannot reach server"; console.error(err); });
+let resizeT; addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(() => { if (state.tab === "overview") drawChart(METRICS.find((x) => x.key === state.metric)); }, 150); });
+setInterval(() => { if (!document.hidden && !dlg.open && state.tab !== "settings" && !state.sel.size && !$("#menu").classList.contains("open")) load(); }, 30000);
+load().catch((err) => { $("#app").innerHTML = `<div class="card empty"><h2>Can't reach Scale Hub</h2><p>${esc(err.message)}</p></div>`; console.error(err); });
 </script>
 </body>
 </html>

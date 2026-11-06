@@ -7,8 +7,11 @@ protocol, the verified findings and the reasoning behind the current design.
 - `server.py`: Python standard library only (no pip installs on the Pi). SQLite, HTTP API,
   body composition model, and the writer that keeps ble-scale-sync's `config.yaml` in step
   with the chosen scale profile.
-- `static/index.html`: the whole web app, no build step, no external scripts. Tabs: Overview,
-  Body, History, Settings. Must work at 390 px width and in dark mode.
+- `static/index.html`: the whole web app, no build step, no external scripts or fonts (the Pi may
+  be offline). Tabs: Overview, Body, History, Settings (bottom tab bar on phones). Must work at
+  390 px width and in dark mode. Design work: use the vendored `impeccable` skill
+  (`.claude/skills/impeccable`, `/impeccable critique|polish|audit ...`); this is an Operate-mode
+  surface, so restraint and scanability over expression.
 - `install.sh`: the install and update path on the Pi; must stay safe to re-run.
 - `tools/decode_packetlogger.py`: decodes iPhone PacketLogger exports of the scale.
 - `docs/ble-scale-sync-upstream.md`: changes to propose to ble-scale-sync;
