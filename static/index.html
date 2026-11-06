@@ -10,12 +10,14 @@
   --bg: #f4f6f8; --card: #ffffff; --ink: #14181f; --muted: #667085; --line: #e4e7ec;
   --accent: #0f766e; --up: #b42318; --down: #027a48; --grid: #eef0f3; --warn-bg: #fff7e6; --warn: #b45309;
   --fat: #f59e0b; --muscle: #0f766e; --lean: #94a3b8; --body: #e8ecf1; --body-edge: #cdd5df;
+  --seg-low: #bfdbfe; --seg-std: #3b82f6; --seg-high: #1e3a8a; --fat-low: #fde68a; --fat-std: #f59e0b; --fat-high: #dc2626;
   --shadow: 0 1px 2px #1018280d, 0 1px 3px #1018281a;
 }
 @media (prefers-color-scheme: dark) {
   :root { --bg: #0d1117; --card: #161b22; --ink: #e6edf3; --muted: #8b949e; --line: #262c36;
           --up: #f97066; --down: #4ade80; --grid: #20262f; --warn-bg: #2a2111; --warn: #fbbf24;
-          --fat: #fbbf24; --muscle: #2dd4bf; --lean: #64748b; --body: #222a35; --body-edge: #333c49; --shadow: none; }
+          --fat: #fbbf24; --muscle: #2dd4bf; --lean: #64748b; --body: #222a35; --body-edge: #333c49; --shadow: none;
+          --seg-low: #1e3a5f; --seg-std: #3b82f6; --seg-high: #93c5fd; --fat-low: #5c4a12; --fat-std: #f59e0b; --fat-high: #f87171; }
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--ink);
@@ -98,7 +100,21 @@ main { padding-bottom: 40px; }
 .figure .lbl { font-weight: 650; font-size: 12px; }
 .figure .sub { fill: var(--muted); font-size: 10.5px; }
 .figure .hero { font-size: 22px; font-weight: 750; fill: var(--ink); }
+.figure .plate { fill: var(--card); fill-opacity: .9; stroke: var(--body-edge); }
 .figure .heroK { font-size: 10px; fill: var(--muted); letter-spacing: .06em; }
+.rgs { display: grid; gap: 10px; }
+.rg { display: grid; grid-template-columns: 150px 1fr 130px; gap: 10px; align-items: center; font-size: 13px; }
+.rg-k { display: grid; } .rg-k .muted { font-size: 11px; }
+.rg-v { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.rg-v span { font-weight: 500; font-size: 12px; margin-left: 4px; }
+.rg-bar { position: relative; height: 12px; border-radius: 6px; overflow: hidden; background: var(--grid); }
+.rg-bar .z { position: absolute; top: 0; bottom: 0; } .rg-bar .z.std { background: color-mix(in srgb, var(--down) 18%, transparent); }
+.rg-bar .fill { position: absolute; left: 0; top: 3px; bottom: 3px; border-radius: 3px; }
+@media (max-width: 520px) { .rg { grid-template-columns: 1fr auto; } .rg-bar { grid-column: 1 / -1; grid-row: 2; } }
+.ev-low { color: var(--warn); fill: var(--warn); } .ev-standard { color: var(--down); fill: var(--down); } .ev-high { color: var(--up); fill: var(--up); }
+.figure text.ev-low { fill: var(--warn); } .figure text.ev-standard { fill: var(--down); } .figure text.ev-high { fill: var(--up); }
+.ev-bg-low { background: var(--warn); } .ev-bg-standard { background: var(--down); } .ev-bg-high { background: var(--up); }
+.seg button:disabled { opacity: .4; }
 .scale-bar { display: flex; height: 22px; border-radius: 6px; overflow: hidden; background: var(--grid); }
 .scale-bar span { display: block; height: 100%; }
 .bars { display: grid; gap: 10px; }
@@ -242,7 +258,7 @@ const TABS = [["overview", "Overview"], ["body", "Body"], ["history", "History"]
 
 const state = {
   days: localGet("days", "90"), unit: localGet("unit", "kg"), tab: localGet("tab", "overview"),
-  me: localGet("me", ""), metric: localGet("metric", "weight"), bodyMode: localGet("bodyMode", "balance"),
+  me: localGet("me", ""), metric: localGet("metric", "weight"), bodyMode: localGet("bodyMode", "muscle"),
   profiles: [], rows: [], all: [], recent: [], unclaimed: [], settings: { scale_profile: null, sync: {} }, sel: new Set(),
 };
 
@@ -501,19 +517,27 @@ function bodyTab(me) {
       both arms and both legs, at 20 and 100 kHz.</p></div>`;
   }
   const ref = refFor(scan);
-  const mode = state.bodyMode === "change" && ref ? "change" : "balance";
+  const modes = [["muscle", "Muscle"], ["fat", "Fat"], ["balance", "Left / right"]];
+  if (ref) modes.push(["change", "vs " + dateLabel(ref.ts)]);
+  let mode = modes.some(([m]) => m === state.bodyMode) ? state.bodyMode : "muscle";
+  if ((mode === "muscle" || mode === "fat") && !scan.segmental) mode = "balance";
+  const notes = {
+    muscle: "Muscle per segment and % of the standard for your height and sex (Low under 90 %, High over 110 %). The total is split by each segment's measured impedance, so left and right can differ.",
+    fat: "Fat per segment and % of standard (Low under 80 %). Impedance can't locate fat: the total is split the way the Renpho app splits it, so left and right are always equal.",
+    balance: "Each limb against the other side: the leaner side is shaded, more strongly the bigger the difference (impedance at 100 kHz).",
+    change: ref ? `Green: more lean tissue than on ${dateLabel(ref.ts)}. Orange: less (impedance at 100 kHz).` : "",
+  };
   return `<div class="grid2">
       <div class="panel"><h2>Body map <span class="muted">${dateLabel(scan.ts, true)}</span></h2>
-        ${ref ? `<div class="seg" role="group" aria-label="Colour by" style="margin-bottom:8px">
-          <button data-bmode="balance" class="${mode === "balance" ? "on" : ""}">Left / right</button>
-          <button data-bmode="change" class="${mode === "change" ? "on" : ""}">vs ${dateLabel(ref.ts)}</button></div>` : ""}
+        <div class="seg" role="group" aria-label="Show" style="margin-bottom:8px;flex-wrap:wrap">
+          ${modes.map(([m, l]) => `<button data-bmode="${m}" class="${mode === m ? "on" : ""}" ${(m === "muscle" || m === "fat") && !scan.segmental ? "disabled" : ""}>${l}</button>`).join("")}</div>
         ${bodyFigure(scan, ref, mode)}
-        <p class="note">${mode === "balance"
-          ? "Each limb is compared with the other side: the leaner side is shaded, more strongly the bigger the difference."
-          : "Green: more lean tissue than on " + dateLabel(ref.ts) + ". Orange: less."}
-          Based on impedance at 100 kHz: lower impedance means more lean tissue and water. Hydration moves it too, so compare weigh-ins taken at the same time of day.</p>
+        ${mode === "muscle" || mode === "fat" ? `<div class="keys">${mode === "muscle"
+          ? '<span><i style="background:var(--seg-low)"></i>Low</span><span><i style="background:var(--seg-std)"></i>Standard</span><span><i style="background:var(--seg-high)"></i>High</span>'
+          : '<span><i style="background:var(--fat-low)"></i>Low</span><span><i style="background:var(--fat-std)"></i>Standard</span><span><i style="background:var(--fat-high)"></i>High</span>'}</div>` : ""}
+        <p class="note">${notes[mode]} ${scan.segmental ? "" : "Add height and sex to the profile for the muscle and fat views."} Hydration moves impedance, so compare weigh-ins taken at the same time of day.</p>
       </div>
-      <div>${compositionPanel(r, me)}</div>
+      <div>${standardsPanel(r)}${compositionPanel(r, me)}</div>
     </div>
     ${segmentPanel(scan, ref)}`;
 }
@@ -524,7 +548,16 @@ function bodyFigure(src, ref, mode) {
   const fill = {}, note = {};
   const accent = "var(--pc)";
   for (const s of SEGMENTS) { fill[s] = "var(--body)"; note[s] = ""; }
-  if (mode === "balance") {
+  const sg = mode === "muscle" ? src.segmental?.muscle : mode === "fat" ? src.segmental?.fat : null;
+  if (sg) {
+    const pal = mode === "muscle" ? { low: "var(--seg-low)", standard: "var(--seg-std)", high: "var(--seg-high)" }
+                                  : { low: "var(--fat-low)", standard: "var(--fat-std)", high: "var(--fat-high)" };
+    for (const s of SEGMENTS) {
+      if (!sg[s]) continue;
+      fill[s] = pal[sg[s].eval];
+      note[s] = `${fmtW(sg[s].kg)} · ${Math.round(sg[s].pct)}% · ${EVAL[sg[s].eval]}`;
+    }
+  } else if (mode === "balance") {
     for (const [a, b] of [["LeftArm", "RightArm"], ["LeftLeg", "RightLeg"]]) {
       const d = leanDiffPct(z(a), z(b)); // >0: left has lower impedance = leaner
       if (d == null) continue;
@@ -545,7 +578,11 @@ function bodyFigure(src, ref, mode) {
     }
   }
   const fat = src.bodyFatPercent, smm = src.skeletalMuscleMass;
-  const label = (s, x, y, anchor) => `<text x="${x}" y="${y}" text-anchor="${anchor}" class="lbl">${SEG_NAME[s]}</text>
+  const label = (s, x, y, anchor) => sg && sg[s]
+    ? `<text x="${x}" y="${y}" text-anchor="${anchor}" class="lbl">${SEG_NAME[s]}</text>
+      <text x="${x}" y="${y + 15}" text-anchor="${anchor}" class="sub">${fmtW(sg[s].kg)} · ${Math.round(sg[s].pct)}%</text>
+      <text x="${x}" y="${y + 29}" text-anchor="${anchor}" class="sub ev-${sg[s].eval}">${EVAL[sg[s].eval]}</text>`
+    : `<text x="${x}" y="${y}" text-anchor="${anchor}" class="lbl">${SEG_NAME[s]}</text>
       <text x="${x}" y="${y + 15}" text-anchor="${anchor}" class="sub">${z(s) != null ? z(s).toFixed(0) + " Ω" : "–"}</text>
       ${note[s] ? `<text x="${x}" y="${y + 29}" text-anchor="${anchor}" class="sub">${note[s]}</text>` : ""}`;
   const lead = (x1, y1, x2, y2) => `<path d="M${x1},${y1} L${x2},${y2}" stroke="var(--muted)" stroke-width="0.8" stroke-dasharray="2 2" fill="none"/>`;
@@ -569,11 +606,16 @@ function bodyFigure(src, ref, mode) {
       <path d="M116,94 Q160,82 204,94 L214,150 Q208,205 200,238 L204,272 Q160,288 116,272 L120,238 Q112,205 106,150 Z" fill="url(#gloss)"/>
     </g>
     <g transform="translate(30,0)">
-    ${fat != null ? `<text x="160" y="168" text-anchor="middle" class="heroK">BODY FAT</text>
-      <text x="160" y="192" text-anchor="middle" class="hero">${fat.toFixed(1)}%</text>` : ""}
-    ${smm != null ? `<text x="160" y="214" text-anchor="middle" class="heroK">SKELETAL MUSCLE</text>
-      <text x="160" y="232" text-anchor="middle" class="lbl">${fmtW(smm)}</text>` : ""}
-    <text x="160" y="258" text-anchor="middle" class="sub">${z("Trunk") != null ? "trunk " + z("Trunk").toFixed(1) + " Ω" : ""}</text>
+    <g>
+    ${fat != null || sg ? `<rect class="plate" x="116" y="142" width="88" height="${sg ? 124 : 96}" rx="10"/>` : ""}
+    ${fat != null ? `<text x="160" y="160" text-anchor="middle" class="heroK">BODY FAT</text>
+      <text x="160" y="184" text-anchor="middle" class="hero">${fat.toFixed(1)}%</text>` : ""}
+    ${smm != null ? `<text x="160" y="204" text-anchor="middle" class="heroK">SKELETAL MUSCLE</text>
+      <text x="160" y="221" text-anchor="middle" class="lbl">${fmtW(smm)}</text>` : ""}
+    ${sg ? `<text x="160" y="244" text-anchor="middle" class="sub">Trunk ${fmtW(sg.Trunk.kg)} · ${Math.round(sg.Trunk.pct)}%</text>
+      <text x="160" y="258" text-anchor="middle" class="sub ev-${sg.Trunk.eval}">${EVAL[sg.Trunk.eval]}</text>`
+      : `<text x="160" y="252" text-anchor="middle" class="sub">${z("Trunk") != null ? "trunk " + z("Trunk").toFixed(1) + " Ω" : ""}</text>`}
+    </g>
     </g>
     ${lead(110, 175, 70, 150)}${label("RightArm", 4, 120, "start")}
     ${lead(270, 175, 310, 150)}${label("LeftArm", 376, 120, "end")}
@@ -582,6 +624,23 @@ function bodyFigure(src, ref, mode) {
   </svg>`;
 }
 
+const EVAL = { low: "Low", standard: "Standard", high: "High" };
+const STD_LABEL = { weight: "Weight", fatMass: "Body fat mass", boneMass: "Bone mass", proteinMass: "Protein",
+                    waterMass: "Body water", muscleMass: "Muscle mass", skeletalMuscleMass: "Skeletal muscle" };
+function standardsPanel(r) {
+  if (!r.standards) return "";
+  const row = (s) => {
+    const a = s.lo * 0.55, b = s.hi * 1.6, pos = (v) => Math.max(0, Math.min(100, (v - a) / (b - a) * 100));
+    const lo = pos(s.lo), hi = pos(s.hi), v = pos(s.value);
+    return `<div class="rg"><div class="rg-k">${STD_LABEL[s.key]}<span class="muted">${fmtW(s.lo).replace(" " + state.unit, "")}–${fmtW(s.hi)}</span></div>
+      <div class="rg-bar"><span class="z" style="left:0;width:${lo}%"></span><span class="z std" style="left:${lo}%;width:${hi - lo}%"></span><span class="z" style="left:${hi}%;width:${100 - hi}%"></span>
+        <span class="fill ev-bg-${s.eval}" style="width:${v}%"></span></div>
+      <div class="rg-v">${fmtW(s.value)} <span class="ev-${s.eval}">${EVAL[s.eval]}</span></div></div>`;
+  };
+  return `<div class="panel"><h2>Against standard <span class="muted">for ${esc(prof(state.me)?.height_cm ?? "")} cm, ${esc(prof(state.me)?.sex ?? "")} · ${r.composition_source === "scale" ? "scale" : "model"} figures</span></h2>
+    <div class="rgs">${r.standards.map(row).join("")}</div>
+    <p class="note">Standard ranges as in the Renpho report: weight around BMI 22 (±15 %), body fat mass 12–24 % of that weight for men${prof(state.me)?.sex === "female" ? " (20–32 % for women: an assumption, no women's report to check against yet)" : ""}, the rest ±10 % of their value at standard weight. The green band is Standard.</p></div>`;
+}
 function compBar(label, w, fatPct, smmKg) {
   if (fatPct == null) return "";
   const fat = w * fatPct / 100, smm = smmKg ?? 0, other = Math.max(0, w - fat - smm);
@@ -603,7 +662,7 @@ function compositionPanel(r, me) {
   const rows = [
     ["Body fat", "bodyFatPercent", "%", 1], ["Fat mass", "_fatMass", "mass", 1], ["Skeletal muscle", "skeletalMuscleMass", "mass", 1],
     ["Skeletal muscle %", "skeletalMusclePercent", "%", 1], ["Muscle (all lean soft tissue)", "muscleMass", "mass", 1],
-    ["Water", "waterPercent", "%", 1], ["Bone", "boneMass", "mass", 2], ["Visceral fat", "visceralFat", "", 0], ["BMR", "bmr", "kcal", 0],
+    ["Water", "waterPercent", "%", 1], ["Protein", "proteinMass", "mass", 1], ["Bone", "boneMass", "mass", 2], ["Visceral fat", "visceralFat", "", 0], ["BMR", "bmr", "kcal", 0],
   ];
   const val = (v, key) => key === "_fatMass" ? (v.bodyFatPercent != null ? w * v.bodyFatPercent / 100 : null) : v[key];
   const table = `<div class="table-wrap"><table><thead><tr><th></th>${cols.map((c) => `<th>${esc(c.name)}${c.primary ? " ★" : ""}</th>`).join("")}</tr></thead><tbody>
@@ -622,7 +681,7 @@ function compositionPanel(r, me) {
       ${bars ? `<div class="bars">${bars}</div><div class="keys"><span><i style="background:var(--fat)"></i>Fat</span><span><i style="background:var(--muscle)"></i>Skeletal muscle</span><span><i style="background:var(--lean)"></i>Other lean (organs, water, bone)</span></div>` : ""}
     </div>
     <div class="panel"><h2>Scale vs model <span class="muted">same weigh-in</span></h2>${table}
-      <p class="note">${sc ? "The scale's figures are what the Renpho app shows; water, bone and muscle mass are derived from its body fat. " : ""}${otherScale ? `The scale computed this weigh-in for ${esc(nameOf(otherScale.computed_for))}'s profile, so its figures aren't used for ${esc(me.name)}. ` : ""}${!sc && !otherScale && me.slug !== state.settings.scale_profile ? `The scale's own analysis appears here when ${esc(me.name)} is the <a href="#" data-tab="settings">scale profile</a>. ` : ""}The model uses published equations with ${esc(me.name)}'s sex and age; the scale's analysis doesn't use either. No method is exact: compare trends within one column.</p></div>`;
+      <p class="note">${sc ? "The scale's figures are what the Renpho app shows; water, protein, bone and muscle mass are derived from its body fat the way the app does. " : ""}${otherScale ? `The scale computed this weigh-in for ${esc(nameOf(otherScale.computed_for))}'s profile, so its figures aren't used for ${esc(me.name)}. ` : ""}${!sc && !otherScale && me.slug !== state.settings.scale_profile ? `The scale's own analysis appears here when ${esc(me.name)} is the <a href="#" data-tab="settings">scale profile</a>. ` : ""}The model uses published equations with ${esc(me.name)}'s sex and age; the scale's analysis doesn't use either. No method is exact: compare trends within one column.</p></div>`;
 }
 
 function segmentPanel(src, ref) {

@@ -79,9 +79,102 @@ JANSSEN_ASIAN_OFFSET_KG = 2.45
 # sends skeletalMusclePercent only when it used the scale's figures). Water, bone and muscle
 # mass are derived from the scale's body fat by ble-scale-sync.
 SCALE_FIELDS = ["bodyFatPercent", "skeletalMusclePercent", "visceralFat", "waterPercent", "boneMass", "muscleMass"]
+# (water, bone and muscle are then re-derived from the scale's body fat the Renpho way: renpho_split)
 MODEL_FIELDS = ["bodyFatPercent", "skeletalMuscleMass", "skeletalMusclePercent", "muscleMass", "waterPercent",
                 "boneMass", "visceralFat", "bmr", "metabolicAge", "composition_source", "reference",
                 "impedance50kHz", "impedanceRatio"]
+
+# Segmental analysis and "standard" ranges, reconstructed from a Renpho app report (male, 180 cm;
+# see docs/rmsc04-notes.md). Segment muscle follows the impedance index H²/Z at 20 kHz with one
+# constant per segment type; the five segments hold 93.6 % of whole-body muscle (the rest is the
+# head and neck). Standards: weight at BMI 22 (range ±15 %), fat mass 12–24 % of that for men,
+# everything else a fixed fraction of the standard fat-free mass (range ±10 %).
+SEG_PARTS = {"Trunk": "Trunk", "LeftArm": "Arm", "RightArm": "Arm", "LeftLeg": "Leg", "RightLeg": "Leg"}
+SEG_K = {"Arm": 0.03503, "Trunk": 0.01682, "Leg": 0.08362}
+SEG_MUSCLE_SHARE = 0.936
+STD_SEG_MUSCLE = {"Arm": 0.0585, "Trunk": 0.467, "Leg": 0.163}   # of standard muscle mass
+STD_SEG_FAT = {"Arm": 0.0537, "Trunk": 0.355, "Leg": 0.139}      # of standard fat mass
+FAT_SPLIT = {"Arm": 0.0346, "Trunk": 0.519, "Leg": 0.185}        # of measured fat mass, per segment
+FAT_RANGE = {"male": (0.12, 0.24), "female": (0.20, 0.32)}       # female: assumed, not from a report
+STD_OF_FFM = {"muscleMass": 0.93, "skeletalMuscleMass": 0.58, "waterMass": 0.73, "proteinMass": 0.20, "boneMass": 0.067}
+# How the Renpho app splits fat-free mass (same report): water 73.3 %, bone 6.65 %, muscle the
+# rest after bone, protein the rest after water and bone. ble-scale-sync derives water, bone and
+# muscle differently, so the scale's figures are re-derived this way to match the app.
+RENPHO_WATER_OF_FFM = 0.733
+RENPHO_BONE_OF_FFM = 0.0665
+SEG_MUSCLE_BAND = (90, 110)  # % of standard: Low below, High above (matches the Renpho report)
+SEG_FAT_BAND = (80, 160)     # Low threshold matches the report; High follows the InBody convention
+
+
+def evaluate(value: float, lo: float, hi: float) -> str:
+    return "low" if value < lo else "high" if value > hi else "standard"
+
+
+def renpho_split(weight: float, fat_pct: float) -> dict:
+    """Water, bone, protein and muscle the way the Renpho app derives them from body fat."""
+    ffm = weight * (1 - fat_pct / 100)
+    water, bone = ffm * RENPHO_WATER_OF_FFM, ffm * RENPHO_BONE_OF_FFM
+    return {"ffm": ffm, "waterMass": water, "waterPercent": round(100 * water / weight, 1),
+            "boneMass": round(bone, 2), "proteinMass": ffm - water - bone, "muscleMass": round(ffm - bone, 2)}
+
+
+def standards(p: dict, weight: float, comp: dict) -> list[dict] | None:
+    """Whole-body values against Renpho-style standard ranges for this person's height and sex.
+    Water, bone, protein and muscle are derived from body fat the Renpho way for every source,
+    since the standards are defined on that split."""
+    h, sex = p.get("height_cm"), p.get("sex")
+    if not h or sex not in FAT_RANGE or comp.get("bodyFatPercent") is None:
+        return None
+    std_w = 22 * (h / 100) ** 2
+    lo, hi = FAT_RANGE[sex]
+    std_ffm = std_w * (1 - (lo + hi) / 2)
+    split = renpho_split(weight, comp["bodyFatPercent"])
+    have = {"weight": weight, "fatMass": weight - split["ffm"], "boneMass": split["boneMass"],
+            "proteinMass": split["proteinMass"], "waterMass": split["waterMass"], "muscleMass": split["muscleMass"]}
+    if comp.get("skeletalMuscleMass") is not None:
+        have["skeletalMuscleMass"] = comp["skeletalMuscleMass"]
+    ranges = {"weight": (std_w * 0.85, std_w * 1.15), "fatMass": (std_w * lo, std_w * hi)}
+    ranges.update({k: (std_ffm * f * 0.9, std_ffm * f * 1.1) for k, f in STD_OF_FFM.items()})
+    out = []
+    for key in ("weight", "fatMass", "boneMass", "proteinMass", "waterMass", "muscleMass", "skeletalMuscleMass"):
+        if key in have:
+            a, b = ranges[key]
+            out.append({"key": key, "value": round(have[key], 2), "lo": round(a, 2), "hi": round(b, 2),
+                        "eval": evaluate(have[key], a, b)})
+    return out
+
+
+def segmental(p: dict, weight: float, comp: dict, row: dict) -> dict | None:
+    """Muscle and fat per segment with % of standard, Renpho-style.
+
+    Muscle: the shown whole-body muscle mass split by each segment's impedance index, so
+    left/right differences come from the measurement. Fat: impedance can't locate fat, so the
+    shown fat mass is split by fixed shares taken from the Renpho report (left and right equal)."""
+    h, sex = p.get("height_cm"), p.get("sex")
+    if not h or sex not in FAT_RANGE or comp.get("muscleMass") is None or comp.get("bodyFatPercent") is None:
+        return None
+    idx = {}
+    for seg, part in SEG_PARTS.items():
+        z = row.get(f"impedance{seg}20kHz")
+        if not z or z <= 0:
+            return None
+        idx[seg] = SEG_K[part] * h * h / z
+    total = sum(idx.values())
+    std_w = 22 * (h / 100) ** 2
+    lo, hi = FAT_RANGE[sex]
+    std_fat = std_w * (lo + hi) / 2
+    std_muscle = std_w * (1 - (lo + hi) / 2) * STD_OF_FFM["muscleMass"]
+    fat = weight * comp["bodyFatPercent"] / 100
+    out = {"muscle": {}, "fat": {}}
+    for seg, part in SEG_PARTS.items():
+        m = comp["muscleMass"] * SEG_MUSCLE_SHARE * idx[seg] / total
+        m_pct = 100 * m / (std_muscle * STD_SEG_MUSCLE[part])
+        f = fat * FAT_SPLIT[part]
+        f_pct = 100 * f / (std_fat * STD_SEG_FAT[part])
+        out["muscle"][seg] = {"kg": round(m, 2), "pct": round(m_pct, 1), "eval": evaluate(m_pct, *SEG_MUSCLE_BAND)}
+        out["fat"][seg] = {"kg": round(f, 2), "pct": round(f_pct, 1), "eval": evaluate(f_pct, *SEG_FAT_BAND)}
+    return out
+
 
 # ble-scale-sync's config, which Scale Hub keeps in step with the chosen scale profile.
 BSS_CONFIG = Path(os.environ.get("SCALE_HUB_BSS_CONFIG") or Path.home() / "ble-scale-sync" / "config.yaml")
@@ -812,6 +905,9 @@ class Store:
                 # belongs to this person only when they are that profile.
                 scale = {f: r[f] for f in SCALE_FIELDS if r[f] is not None}
                 scale["skeletalMuscleMass"] = round(r["skeletalMusclePercent"] * r["weight"] / 100, 1)
+                split = renpho_split(r["weight"], r["bodyFatPercent"])
+                scale.update(waterPercent=split["waterPercent"], boneMass=split["boneMass"],
+                             muscleMass=split["muscleMass"], proteinMass=round(split["proteinMass"], 2))
                 computed_for = r["scale_for"] or (
                     scale_profile if scale_profile and r["user_slug"] == bss_slug else r["user_slug"])
                 scale["computed_for"] = computed_for
@@ -841,6 +937,12 @@ class Store:
                 for k, v in primary.items():
                     d[k] = v
                 d["estimated"] = not use_scale
+                std = standards(p, r["weight"], d)
+                if std:
+                    d["standards"] = std
+                seg = segmental(p, r["weight"], d, d)
+                if seg:
+                    d["segmental"] = seg
             out.append(d)
         return out
 

@@ -153,6 +153,34 @@ choose which is shown first.
 - Duplicates: the same weight within 2 minutes is one weigh-in. A repeat with more fields (for
   example impedances after a weight-only reading) replaces it.
 
+## 6b. Renpho app report: segments and standards (reconstructed from one report)
+
+The app's per-limb figures are **not sent by the scale**; the app computes them. One Renpho
+"Body Composition Analysis Report" (male, 30, 180 cm, 67.85 kg, 11.3 % fat, 20 kHz
+impedances R arm 343.1, L arm 349.1, trunk 20.8, R leg 268.9, L leg 280.1 Ω) gives:
+
+- **Standards**: standard weight = BMI 22 (71.3 kg), range ±15 % (60.6–82.0). Fat mass
+  12–24 % of standard weight for men (8.6–17.1). Muscle, skeletal muscle, water, protein and
+  bone standards = 0.93 / 0.58 / 0.73 / 0.20 / 0.067 × the fat-free mass at standard weight,
+  each ±10 %. Female fat range 20–32 % is an **assumption** (no women's report yet).
+- **Fat-free split**: water = 73.3 % of FFM, bone = 6.65 %, muscle = FFM − bone, protein =
+  FFM − water − bone. ble-scale-sync derives these differently, so Scale Hub re-derives the
+  scale's figures this way (`renpho_split`).
+- **Segment muscle**: kg ≈ k · H²/Z20 with k = 0.0350 (arms), 0.01682 (trunk), 0.0836 (legs);
+  the five segments hold 93.6 % of whole-body muscle. Scale Hub splits the shown muscle mass by
+  these indices, so left/right follow the measured impedance. Renpho itself gave both legs the
+  identical 9.87 kg although their impedances differ by 4 %, so the app mostly ignores
+  segment impedance.
+- **Segment standards**: arm 5.85 %, trunk 46.7 %, leg 16.3 % of standard muscle; bands
+  Low < 90 %, High > 110 % (the report's 111.2 % leg is "High", 102.5 % "Standard").
+- **Segment fat**: impedance can't locate fat. Renpho's split of total fat: arm 3.46 %,
+  trunk 51.9 %, leg 18.5 % each; standards arm 5.37 %, trunk 35.5 %, leg 13.9 % of standard fat.
+  Low < 80 % (79.3 % was "Low", 87.3 % "Standard"); High > 160 % is assumed (InBody convention).
+
+With these constants Scale Hub reproduces that report to within about 0.1 kg per segment.
+Needed to validate: more reports, ideally including the full Bioelectrical Impedance table
+(20 and 100 kHz rows), on days with different body fat, and one from a woman.
+
 ## 7. How to test and debug
 
 - Live log: `journalctl -u ble-scale -f -a` (`-a`, or journald shows `[blob data]`).

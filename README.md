@@ -59,8 +59,9 @@ Strava, Intervals.icu, Home Assistant (MQTT), InfluxDB and others work the same 
 
 Every weigh-in keeps **both** the scale's own analysis and Scale Hub's model, side by side
 (Body tab), and each person chooses which one their cards and charts show first
-(*Show first* in their profile). The **Body tab** has a body map (left/right lean balance, or
-lean change against about 30 days ago), the fat / muscle / other-lean split for each source,
+(*Show first* in their profile). The **Body tab** has a body map (muscle and fat per limb with % of standard and Low / Standard / High
+like the Renpho app report, left/right lean balance, or lean change against about 30 days ago),
+whole-body values against Renpho's standard ranges, the fat / muscle / other-lean split for each source,
 and a scale-vs-model table. Why the two can differ by 10 points or more:
 [docs/rmsc04-notes.md](docs/rmsc04-notes.md#5-why-the-scale-and-the-model-disagree-so-much).
 
