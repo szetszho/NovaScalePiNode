@@ -67,6 +67,13 @@ DRIFT_KG_PER_DAY = 0.1        # extra tolerance per day since the person last we
 MAX_DRIFT_KG = 6.0
 MIN_CONFIDENCE = 0.35         # below this the reading stays unclaimed
 
+# Which published equations a profile uses for impedance-based body composition.
+#   general     NHANES III fat-free mass (Chumlea 2002), Janssen 2000 skeletal muscle
+#   east_asian  Chen 2016 fat-free mass (704 Chinese adults vs DXA, hand-to-hand path),
+#               Janssen 2000 + 2.45 kg (the paper's MRI-measured underestimate in Asians)
+BODY_REFERENCES = ("general", "east_asian")
+JANSSEN_ASIAN_OFFSET_KG = 2.45
+
 PALETTE = ["#0f766e", "#7c3aed", "#c2410c", "#2563eb", "#be185d", "#4d7c0f", "#b45309", "#0e7490"]
 
 SCHEMA = f"""
@@ -88,6 +95,7 @@ CREATE TABLE IF NOT EXISTS profiles (
     sex TEXT,
     athlete INTEGER NOT NULL DEFAULT 0,
     start_weight REAL,
+    body_reference TEXT NOT NULL DEFAULT 'general',
     created TEXT NOT NULL
 );
 """
@@ -146,27 +154,34 @@ F50 = math.log(50 / 20) / math.log(100 / 20)
 
 
 def whole_body_impedance(row) -> dict | None:
-    """Hand-to-foot impedance from the eight-electrode segment readings.
+    """Hand-to-foot and hand-to-hand impedance from the eight-electrode segments.
 
     A hand-to-foot path runs through one arm, the trunk and one leg, so it is
-    approximated as arm + trunk + leg, averaged over the left and right sides.
-    The prediction equations below were built on 50 kHz measurements; 50 kHz is
-    interpolated between the scale's 20 and 100 kHz readings on a log-frequency
-    scale. At these frequencies impedance is within about 1 % of resistance.
+    approximated as arm + trunk + leg averaged over both sides; hand-to-hand is
+    left arm + right arm. The prediction equations were built on 50 kHz
+    measurements; 50 kHz is interpolated between the scale's 20 and 100 kHz
+    readings on a log-frequency scale. At these frequencies impedance is within
+    about 1 % of resistance.
     """
-    def side_avg(freq):
-        v = {seg: row.get(f"impedance{seg}{freq}") for seg in ("Trunk", "LeftArm", "RightArm", "LeftLeg", "RightLeg")}
-        if any(x is None or x <= 0 for x in v.values()):
-            return None
-        return (v["LeftArm"] + v["RightArm"] + v["LeftLeg"] + v["RightLeg"]) / 2 + v["Trunk"]
+    segs = ("Trunk", "LeftArm", "RightArm", "LeftLeg", "RightLeg")
+    z = {}
+    for seg in segs:
+        lo, hi = row.get(f"impedance{seg}20kHz"), row.get(f"impedance{seg}100kHz")
+        if not lo or not hi or lo <= 0 or hi <= 0 or hi > lo * 1.02:
+            return None  # missing, or impedance rising with frequency: a bad contact
+        z[seg] = (lo, hi, lo + (hi - lo) * F50)
 
-    z20, z100 = side_avg("20kHz"), side_avg("100kHz")
-    if z20 is None or z100 is None:
+    def path(i, parts):
+        return sum(z[p][i] for p in parts)
+
+    limbs = ("LeftArm", "RightArm", "LeftLeg", "RightLeg")
+    z20 = path(0, limbs) / 2 + z["Trunk"][0]
+    z100 = path(1, limbs) / 2 + z["Trunk"][1]
+    z50 = path(2, limbs) / 2 + z["Trunk"][2]
+    hand50 = path(2, ("LeftArm", "RightArm"))
+    if not 200 <= z50 <= 1200 or not 150 <= hand50 <= 1200:
         return None
-    z50 = z20 + (z100 - z20) * F50
-    if not 200 <= z50 <= 1200 or z100 > z20 * 1.02:
-        return None  # outside human range, or impedance rising with frequency: a bad contact
-    return {"z20": z20, "z100": z100, "z50": z50}
+    return {"z20": z20, "z100": z100, "z50": z50, "hand50": hand50}
 
 
 def estimate_composition(weight: float, p: dict, when: datetime, row: dict | None = None,
@@ -174,8 +189,10 @@ def estimate_composition(weight: float, p: dict, when: datetime, row: dict | Non
     """Body composition for one weigh-in and the person's profile.
 
     With the scale's segment impedances (adults only):
-      fat-free mass  NHANES III equations, Chumlea et al. 2002, Int J Obes 26:1596
-      skeletal muscle Janssen et al. 2000, J Appl Physiol 89:465 (MRI-validated)
+      fat-free mass  NHANES III, Chumlea et al. 2002, Int J Obes 26:1596; or for
+                     body_reference east_asian, Chen et al. 2016, Nutrients 8:654
+      skeletal muscle Janssen et al. 2000, J Appl Physiol 89:465 (MRI-validated),
+                     plus 2.45 kg for east_asian
       BMR            Katch-McArdle, from fat-free mass
     Without them, the BMI-based fallback ble-scale-sync also uses: Deurenberg 1991
     body fat and Mifflin-St Jeor BMR. Water, bone and muscle mass come from
@@ -197,14 +214,23 @@ def estimate_composition(weight: float, p: dict, when: datetime, row: dict | Non
     ideal_bmr = 10 * weight + 6.25 * h - 5 * 25 + sex_const  # Mifflin-St Jeor at age 25
 
     wb = whole_body_impedance(row) if row and age >= 18 else None
+    reference = p.get("body_reference") if p.get("body_reference") in BODY_REFERENCES else "general"
     ffm = smm = None
     if wb:
         hr = h * h / wb["z50"]
-        if male:
+        if reference == "east_asian":
+            hh = h * h / wb["hand50"]
+            if male:
+                ffm = 0.537 * hh - 0.126 * age + 0.217 * weight + 18.235
+            else:
+                ffm = 0.615 * hh - 0.144 * age + 0.132 * weight + 16.507
+        elif male:
             ffm = -10.678 + 0.262 * weight + 0.652 * hr + 0.015 * wb["z50"]
         else:
             ffm = -9.529 + 0.168 * weight + 0.696 * hr + 0.016 * wb["z50"]
         smm = 0.401 * hr + 3.825 * male - 0.071 * age + 5.102
+        if reference == "east_asian":
+            smm += JANSSEN_ASIAN_OFFSET_KG
         bf = 100 * (1 - ffm / weight)
         if not (3 <= bf <= 60) or not (0 < smm < ffm):
             ffm = smm = None  # equation pushed outside its valid range: fall back to BMI
@@ -213,6 +239,7 @@ def estimate_composition(weight: float, p: dict, when: datetime, row: dict | Non
         bf = 100 * (1 - ffm / weight)
         bmr = 370 + 21.6 * ffm
         source = "impedance"
+        out["reference"] = reference
         out.update(
             skeletalMuscleMass=round(smm, 1),
             skeletalMusclePercent=round(smm / weight * 100, 1),
@@ -281,6 +308,9 @@ class Store:
             if col not in existing:
                 self.conn.execute(f"ALTER TABLE measurements ADD COLUMN {col} {ctype}")
         self.conn.execute("CREATE INDEX IF NOT EXISTS idx_measurements_profile ON measurements(profile, ts)")
+        pcols = {r["name"] for r in self.conn.execute("PRAGMA table_info(profiles)")}
+        if "body_reference" not in pcols:
+            self.conn.execute("ALTER TABLE profiles ADD COLUMN body_reference TEXT NOT NULL DEFAULT 'general'")
         if upgrading:
             # v1 databases: turn each ble-scale-sync user into a profile and keep its readings.
             rows = self.conn.execute(
@@ -337,6 +367,7 @@ class Store:
                 raise ValueError("birth_date must be a past date (YYYY-MM-DD)")
         sex = data.get("sex") if data.get("sex") in ("male", "female") else None
         athlete = 1 if data.get("athlete") else 0
+        reference = data.get("body_reference") if data.get("body_reference") in BODY_REFERENCES else "general"
         color = data.get("color") if re.fullmatch(r"#[0-9a-fA-F]{6}", str(data.get("color") or "")) else None
 
         with self.lock:
@@ -347,16 +378,16 @@ class Store:
                     slug, n = f"{base}-{n}", n + 1
                 count = self.conn.execute("SELECT COUNT(*) FROM profiles").fetchone()[0]
                 self.conn.execute(
-                    "INSERT INTO profiles (slug, name, color, height_cm, birth_date, sex, athlete, start_weight, created) "
-                    "VALUES (?,?,?,?,?,?,?,?,?)",
+                    "INSERT INTO profiles (slug, name, color, height_cm, birth_date, sex, athlete, start_weight, "
+                    "body_reference, created) VALUES (?,?,?,?,?,?,?,?,?,?)",
                     (slug, name, color or PALETTE[count % len(PALETTE)], height, birth, sex, athlete, start_weight,
-                     to_iso(utc_now())),
+                     reference, to_iso(utc_now())),
                 )
             else:
                 cur = self.conn.execute(
                     "UPDATE profiles SET name=?, color=COALESCE(?, color), height_cm=?, birth_date=?, sex=?, athlete=?, "
-                    "start_weight=? WHERE slug=?",
-                    (name, color, height, birth, sex, athlete, start_weight, slug),
+                    "start_weight=?, body_reference=? WHERE slug=?",
+                    (name, color, height, birth, sex, athlete, start_weight, reference, slug),
                 )
                 if cur.rowcount == 0:
                     raise KeyError(slug)
@@ -572,6 +603,13 @@ class Store:
             elif p:
                 d.update(estimate_composition(r["weight"], p, parse_ts(r["ts"]), d,
                                               impedance_only=p["slug"] in with_impedance))
+                if d.get("composition_source") == "impedance":
+                    # What the other equation set gives, so the two can be compared on real data.
+                    other = "general" if d.get("reference") == "east_asian" else "east_asian"
+                    alt = estimate_composition(r["weight"], {**p, "body_reference": other}, parse_ts(r["ts"]), d)
+                    if alt.get("composition_source") == "impedance":
+                        d["bodyFatPercentOther"] = alt["bodyFatPercent"]
+                        d["skeletalMuscleMassOther"] = alt["skeletalMuscleMass"]
                 d["estimated"] = True
             out.append(d)
         return out

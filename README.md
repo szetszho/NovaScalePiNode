@@ -78,6 +78,8 @@ the chart says which one was used:
      impedance means more lean tissue and water.
    - **100/20 kHz ratio:** a lower ratio means more cell mass relative to fluid. Use it as a
      trend, not a diagnosis.
+   - **East Asian reference (per profile):** set *Body composition reference → East Asian*
+     in a person's profile to use equations built for Asian adults (see below).
 3. **BMI-based estimate.** Deurenberg's formula from weight, height, age and sex, used when
    there's no impedance. Once a person has impedance weigh-ins, their weigh-ins without the
    handle show weight and BMI only, so their trends don't jump between the two methods.
@@ -89,6 +91,25 @@ hand-to-foot analyzers, so a summed eight-electrode path is an approximation. Ex
 single number. Weigh in at the same time of day, because hydration moves impedance. The Renpho
 app's per-limb fat and muscle figures use Renpho's own unpublished formula and are not
 reproduced here.
+
+### East Asian reference
+
+Body build differs: at the same height, weight and impedance, East Asian adults on average
+have a different split of fat, muscle and water than the mostly white samples behind the
+standard equations, and more body fat at a given BMI. Each profile can pick its reference:
+
+| | General | East Asian |
+| --- | --- | --- |
+| Fat-free mass and body fat | NHANES III (Chumlea 2002): US adults, hand-to-foot | **Chen et al. 2016** (Nutrients 8:654): 704 healthy Chinese adults, against DXA, hand-to-hand (left arm + right arm on the Nova). Men: 0.537·h²/Z − 0.126·age + 0.217·weight + 18.235. Women: 0.615·h²/Z − 0.144·age + 0.132·weight + 16.507 |
+| Skeletal muscle | Janssen 2000 | Janssen 2000 **+ 2.45 kg**: the same paper found its equation underestimated MRI-measured muscle in Asians by 2.45 ± 1.61 kg |
+| BMI categories | WHO: healthy < 25, overweight 25–30, obese ≥ 30 | WHO 2004 Asia action points: healthy < 23, increased risk 23–27.5, high risk ≥ 27.5 |
+
+The note under the chart also shows what the other reference gives for the same weigh-in, so
+you can compare both on your own readings. The difference goes either way depending on each
+person's arm vs leg impedance. Limits: Chen's equation is Chinese-derived and not separately
+validated in Japanese or Korean adults, and the 2.45 kg is an average offset. For South Asian
+backgrounds (Indian, Pakistani and others), body fat at a given BMI is higher still, and no
+equation here was built for them.
 
 ### The scale's own body fat (`rmsc04_profile_byte`)
 

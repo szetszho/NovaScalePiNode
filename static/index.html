@@ -138,6 +138,10 @@ dialog h3 { margin: 0 0 12px; }
       <label>Sex<select name="sex"><option value="">–</option><option value="male">Male</option><option value="female">Female</option></select></label>
       <label>Usual weight (kg)<input name="start_weight" type="number" step="0.1" min="2" max="400" inputmode="decimal"></label>
       <p class="hint">Usual weight lets new weigh-ins be matched to this person before they have any history. Height, birth date and sex are needed for BMI and body-fat estimates.</p>
+      <label class="full">Body composition reference<select name="body_reference">
+        <option value="general">General</option>
+        <option value="east_asian">East Asian</option></select></label>
+      <p class="hint">Picks the published equations that turn the scale's impedance into body fat and muscle, and the BMI categories. General: NHANES III, BMI 25 / 30. East Asian (Chinese, Japanese, Korean and similar): Chinese-adult equations, WHO Asia BMI 23 / 27.5.</p>
       <label class="check"><input type="checkbox" name="athlete"> Athlete (trains 8+ hours a week)</label>
     </div>
     <div class="err" id="perr"></div>
@@ -338,7 +342,7 @@ function render() {
     <div class="card ${m.key === state.metric ? "on" : ""}" data-metric="${m.key}" tabindex="0">
       <div class="k">${m.label}</div>
       <div class="v">${fmt(m, lastWith(m.key)?.[m.key])}<span>${unitLabel(m)}</span></div>
-      <div class="d">${[deltaHtml(m, deltaVs(m, 7), "7d"), deltaHtml(m, deltaVs(m, 30), "30d")].filter(Boolean).join(" · ") || "&nbsp;"}</div>
+      <div class="d">${m.key === "bmi" ? `<b>${bmiCategory(lastWith("bmi")?.bmi, me.body_reference)}</b> · ` : ""}${[deltaHtml(m, deltaVs(m, 7), "7d"), deltaHtml(m, deltaVs(m, 30), "30d")].filter(Boolean).join(" · ") || "&nbsp;"}</div>
     </div>`).join("");
 
   const segHtml = segmentPanel();
@@ -353,7 +357,7 @@ function render() {
     ${missing.length ? `<p class="muted">Add ${missing.join(", ")} to <a href="#" data-edit="${esc(me.slug)}">${esc(me.name)}'s profile</a> for BMI and body-fat estimates.</p>` : ""}
     <div class="panel"><h2>${esc(me.name)} · ${m.label} <span class="muted">${state.rows.filter((r) => r[m.key] != null).length} readings · ${unitLabel(m) || "value"}</span></h2>
       <svg id="chart" role="img" aria-label="${m.label} over time"></svg>
-      ${anyEstimated && m.key !== "weight" ? `<p class="muted" style="margin:6px 0 0">${sourceNote(lastWith(m.key)?.composition_source)}</p>` : ""}</div>
+      ${anyEstimated && m.key !== "weight" ? `<p class="muted" style="margin:6px 0 0">${sourceNote(lastWith(m.key))}</p>` : ""}</div>
     ${segHtml}
     <div class="panel"><h2>${esc(me.name)}'s history <a href="/api/export.csv?days=all&profile=${encodeURIComponent(state.me)}" class="muted">Download CSV</a></h2>
       <div class="table-wrap"><table>
@@ -368,9 +372,26 @@ function render() {
 const SOURCE_NOTES = {
   scale: "From the scale's own analysis for your profile.",
   impedance: "Calculated from the scale's segment impedance: fat-free mass from the NHANES III equations, skeletal muscle from Janssen et al. 2000. Typical error about ±3–4 % body fat.",
+  impedance_east_asian: "Calculated from the scale's segment impedance with East Asian equations: fat-free mass from Chen et al. 2016 (704 Chinese adults, checked against DXA), skeletal muscle from Janssen et al. 2000 plus the 2.45 kg it underestimates in Asians. Typical error about ±3–4 % body fat.",
   bmi: "Estimated from weight, height, age and sex (no impedance in this weigh-in). Stay on the scale holding the handle until it shows results to get the impedance-based figures.",
 };
-function sourceNote(src) { return SOURCE_NOTES[src] || SOURCE_NOTES.bmi; }
+function sourceNote(r) {
+  if (!r) return SOURCE_NOTES.bmi;
+  const src = r.composition_source;
+  let note = (src === "impedance" && r.reference === "east_asian" ? SOURCE_NOTES.impedance_east_asian : SOURCE_NOTES[src]) || SOURCE_NOTES.bmi;
+  if (src === "impedance" && r.bodyFatPercentOther != null) {
+    const other = r.reference === "east_asian" ? "General" : "East Asian";
+    note += ` ${other} equations on the same weigh-in: ${r.bodyFatPercentOther.toFixed(1)} % body fat, ${fmtW(r.skeletalMuscleMassOther)} skeletal muscle.`;
+  }
+  return note;
+}
+// WHO cut-offs; for Asian populations the 2004 WHO consultation added action points at 23 and 27.5.
+function bmiCategory(bmi, reference) {
+  if (bmi == null) return "";
+  if (bmi < 18.5) return "Underweight";
+  if (reference === "east_asian") return bmi < 23 ? "Healthy" : bmi < 27.5 ? "Increased risk" : "High risk";
+  return bmi < 25 ? "Healthy" : bmi < 30 ? "Overweight" : "Obese";
+}
 
 const segZ = (r, s, f) => r?.["impedance" + s + f];
 const segLabel = (s) => s.replace(/([A-Z])/g, " $1").trim();
@@ -469,7 +490,7 @@ function openProfile(slug) {
   const used = new Set(state.profiles.map((p) => p.color));
   pickedColor = editing?.color || PALETTE.find((c) => !used.has(c)) || PALETTE[0];
   if (editing) {
-    for (const k of ["name", "height_cm", "birth_date", "sex", "start_weight"]) pform.elements[k].value = editing[k] ?? "";
+    for (const k of ["name", "height_cm", "birth_date", "sex", "start_weight", "body_reference"]) pform.elements[k].value = editing[k] ?? "";
     pform.elements.athlete.checked = !!editing.athlete;
   }
   renderSwatches();
@@ -485,7 +506,8 @@ pform.onsubmit = async (e) => {
   e.preventDefault();
   const f = pform.elements;
   const body = { name: f.name.value.trim(), color: pickedColor, height_cm: f.height_cm.value, birth_date: f.birth_date.value,
-                 sex: f.sex.value, start_weight: f.start_weight.value, athlete: f.athlete.checked };
+                 sex: f.sex.value, start_weight: f.start_weight.value, athlete: f.athlete.checked,
+                 body_reference: f.body_reference.value };
   const res = await api(editing ? `/api/profiles/${editing.slug}` : "/api/profiles", { method: "POST", body: JSON.stringify(body) });
   const data = await res.json();
   if (!res.ok) { $("#perr").textContent = data.error || "Could not save"; return; }
