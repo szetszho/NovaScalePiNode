@@ -128,6 +128,30 @@ Renpho R-MSC04: using the scale's body fat, skeletal muscle and visceral fat, co
 That session connected after the weight had locked (no 0x24), and the D057 path picked up the
 record correctly.
 
+## Protocol notes from a full iOS capture (Renpho app)
+
+Every checksum is valid. The app numbers its writes with a seq that keeps counting across
+connections (0x11 to 0x15 in this session).
+
+| Frame | Payload | Notes |
+|---|---|---|
+| b3 clock | `11 07 01 01 6AED6A56 8168 00` | **Zone west of UTC = 0x8000 \| minutes**: UTC−6 is `0x8168` (360). Seen in two captures. ble-scale-sync currently sends UTC there. |
+| b2 profile | `12 01 0708 1B71 <byte> 03 02` | slot 01, 180.0 cm, 70.25 kg; `03 02` the same in both captures (the guest form has `ff 02`) |
+| b7 name | `13 01 00 01 00 03 <3 ASCII bytes>` | slot, `00 01 00`, name length, name |
+| b8 settings | `14 01 00 00 00 00 00 00 00 00 00 00` | slot, all zeros here |
+| b6 | `<seq> 01` | only after the scale replays a stored 0x26 record (first capture); absent when nothing is stored |
+
+- The app wrote b2 at connect and again after the 0x25 record. In one capture it also wrote b2
+  after 0x24, in the other it didn't, so that write isn't required.
+- **0x25 byte [32] is the slot the record was computed for**: `01` in the app's session, `09` in
+  ours (guest slot).
+- Same scale, same 70.25 kg, iPhone vs Pi: segment impedances agree within about 1 %
+  (20 kHz trunk 16.8 vs 17.1 Ω, L arm 334.3 vs 334.5 Ω, ...). Body fat 11.3 vs 15.6 % and BMI
+  21.7 vs 22.9 differ only because my config still had 175 cm while the app sends 180 cm. BMI
+  gives away the height the scale used, which is what the existing "BMI matches the height we
+  sent" check relies on.
+- Timing: 0x24 at +3 s, status 0x09 6.2 s later, 0x11 + 0x25 15.8 s after 0x24.
+
 ## Workaround (what I did)
 
 1. Run bluetoothd without the GAP plugin:
