@@ -9,6 +9,8 @@ WorkingDirectory=@HUB_DIR@
 # Shares SCALE_HUB_TOKEN with ble-scale-sync so only it can post readings.
 EnvironmentFile=-@BSS_DIR@/.env
 Environment="SCALE_HUB_PORT=@PORT@"
+# The web app writes the chosen scale profile into ble-scale-sync's config (Settings tab).
+Environment="SCALE_HUB_BSS_CONFIG=@BSS_DIR@/config.yaml"
 ExecStart=/usr/bin/python3 @HUB_DIR@/server.py
 Restart=always
 RestartSec=3

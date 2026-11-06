@@ -72,7 +72,20 @@ MIN_CONFIDENCE = 0.35         # below this the reading stays unclaimed
 #   east_asian  Chen 2016 fat-free mass (704 Chinese adults vs DXA, hand-to-hand path),
 #               Janssen 2000 + 2.45 kg (the paper's MRI-measured underestimate in Asians)
 BODY_REFERENCES = ("general", "east_asian")
+COMPOSITION_SOURCES = ("scale", "model")  # which one a profile's cards and charts show first
 JANSSEN_ASIAN_OFFSET_KG = 2.45
+
+# What the R-MSC04 itself reports for the profile it was sent (via ble-scale-sync, which
+# sends skeletalMusclePercent only when it used the scale's figures). Water, bone and muscle
+# mass are derived from the scale's body fat by ble-scale-sync.
+SCALE_FIELDS = ["bodyFatPercent", "skeletalMusclePercent", "visceralFat", "waterPercent", "boneMass", "muscleMass"]
+MODEL_FIELDS = ["bodyFatPercent", "skeletalMuscleMass", "skeletalMusclePercent", "muscleMass", "waterPercent",
+                "boneMass", "visceralFat", "bmr", "metabolicAge", "composition_source", "reference",
+                "impedance50kHz", "impedanceRatio"]
+
+# ble-scale-sync's config, which Scale Hub keeps in step with the chosen scale profile.
+BSS_CONFIG = Path(os.environ.get("SCALE_HUB_BSS_CONFIG") or Path.home() / "ble-scale-sync" / "config.yaml")
+RESYNC_SECONDS = 6 * 3600  # re-check the profile byte (age changes on birthdays)
 
 PALETTE = ["#0f766e", "#7c3aed", "#c2410c", "#2563eb", "#be185d", "#4d7c0f", "#b45309", "#0e7490"]
 
@@ -96,8 +109,10 @@ CREATE TABLE IF NOT EXISTS profiles (
     athlete INTEGER NOT NULL DEFAULT 0,
     start_weight REAL,
     body_reference TEXT NOT NULL DEFAULT 'general',
+    primary_source TEXT NOT NULL DEFAULT 'scale',
     created TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
 """
 
 # Columns added after v1. Assignment state lives on the measurement:
@@ -110,6 +125,7 @@ ASSIGN_COLUMNS = {
     "auto_profile": "TEXT",
     "confidence": "REAL",
     "claimed_at": "TEXT",
+    "scale_for": "TEXT",   # the Scale Hub profile the scale was set to compute for at this weigh-in
 }
 
 
@@ -281,6 +297,120 @@ def estimate_composition(weight: float, p: dict, when: datetime, row: dict | Non
     return out
 
 
+def profile_byte(sex: str, age: int) -> int:
+    """The R-MSC04 b2 profile byte: bit 7 set for male, the low 7 bits the age in years
+    (from Renpho app captures: male 30 = 0x9E, female 30 = 0x1E, female 32 = 0x20)."""
+    return (0x80 if sex == "male" else 0x00) | max(0, min(int(age), 0x7F))
+
+
+_TOP_KEY = re.compile(r"^[A-Za-z_][\w-]*\s*:")
+
+
+def _block(lines: list[str], key: str) -> tuple[int, int] | None:
+    """Line range [start, end) of a top-level `key:` block in a YAML file."""
+    start = next((i for i, l in enumerate(lines) if re.match(rf"^{key}\s*:\s*(#.*)?$", l)), None)
+    if start is None:
+        return None
+    end = next((i for i in range(start + 1, len(lines)) if _TOP_KEY.match(lines[i])), len(lines))
+    return start, end
+
+
+def first_user_slug(path: Path) -> str | None:
+    """The slug of the first user in ble-scale-sync's config.yaml (who it tags readings with)."""
+    lines = path.read_text(encoding="utf-8").split("\n")
+    users = _block(lines, "users")
+    if not users:
+        return None
+    depth = None
+    for i in range(users[0] + 1, users[1]):
+        m = re.match(r"^(\s*)- ", lines[i])
+        if m:
+            if depth is not None:
+                break
+            depth = len(m.group(1))
+        m = re.match(r"^\s*(?:- )?slug\s*:\s*['\"]?([a-z0-9-]+)", lines[i])
+        if m and depth is not None:
+            return m.group(1)
+    return None
+
+
+def write_bss_config(path: Path, p: dict, byte: int, last_weight: float | None) -> tuple[bool, str | None]:
+    """Set the first user (who the scale computes for) and ble.rmsc04_profile_byte in
+    ble-scale-sync's config.yaml. Line edits only: comments, exporters and other users stay.
+    Returns (changed, warning)."""
+    text = path.read_text(encoding="utf-8")
+    lines = text.split("\n")
+    users = _block(lines, "users")
+    if not users:
+        raise ValueError("no top-level 'users:' list")
+    item = next((i for i in range(users[0] + 1, users[1]) if re.match(r"^\s*- ", lines[i])), None)
+    if item is None:
+        raise ValueError("'users:' has no entries")
+    dash = re.match(r"^(\s*)- ", lines[item])
+    indent = len(dash.group(1))
+    key_pad = " " * (indent + 2)
+    item_end = next((i for i in range(item + 1, users[1])
+                     if lines[i].strip() and not lines[i].lstrip().startswith("#")
+                     and len(lines[i]) - len(lines[i].lstrip()) <= indent), users[1])
+    # The slug stays: Garmin keeps its login per user slug. Scale Hub records which of its
+    # profiles the scale was set to on each reading instead (measurements.scale_for).
+    inches = any(re.match(r"^\s+height_unit\s*:\s*['\"]?in\b", l) for l in lines)
+    height = round(p["height_cm"] / 2.54, 1) if inches else p["height_cm"]
+    values = {
+        "name": json.dumps(p["name"]),
+        "height": f"{height:g}",
+        "birth_date": json.dumps(p["birth_date"]),
+        "gender": p["sex"],
+        "is_athlete": "true" if p.get("athlete") else "false",
+    }
+    if last_weight:
+        values["last_known_weight"] = f"{last_weight:g}"
+    for key, val in values.items():
+        found = None
+        for i in range(item, item_end):
+            m = re.match(rf"^(\s*- |{key_pad}){key}\s*:", lines[i])
+            if m:
+                found = (i, m.group(1))
+                break
+        if found:
+            lines[found[0]] = f"{found[1]}{key}: {val}"
+        else:
+            lines.insert(item + 1, f"{key_pad}{key}: {val}")
+            item_end += 1
+    warning = None
+    for i in range(item, item_end):
+        m = re.search(r"weight_range\s*:\s*\{\s*min\s*:\s*([\d.]+)\s*,\s*max\s*:\s*([\d.]+)", lines[i])
+        if m and last_weight and not float(m.group(1)) <= last_weight <= float(m.group(2)):
+            warning = (f"{p['name']}'s last weight {last_weight:g} kg is outside weight_range "
+                       f"{m.group(1)}–{m.group(2)} in config.yaml; widen it so their weigh-ins match.")
+    if any(re.match(r"^\s*- ", lines[i]) for i in range(item_end, users[1])):
+        warning = (warning + " " if warning else "") + (
+            "config.yaml has more than one user: the scale's own figures are only exported for weigh-ins "
+            "ble-scale-sync matches to the first one.")
+
+    line = f'  rmsc04_profile_byte: "{byte:02x}"'
+    ble = _block(lines, "ble")
+    if ble:
+        hit = next((i for i in range(ble[0] + 1, ble[1]) if re.match(r"^\s+rmsc04_profile_byte\s*:", lines[i])), None)
+        if hit is not None:
+            pad = re.match(r"^(\s+)", lines[hit]).group(1)
+            lines[hit] = f'{pad}rmsc04_profile_byte: "{byte:02x}"'
+        else:
+            lines.insert(ble[0] + 1, line)
+    else:
+        while lines and lines[-1] == "":
+            lines.pop()
+        lines += ["", "ble:", line, ""]
+    new = "\n".join(lines)
+    if new == text:
+        return False, warning
+    tmp = path.with_name(path.name + ".scale-hub.tmp")
+    tmp.write_text(new, encoding="utf-8")
+    os.chmod(tmp, path.stat().st_mode & 0o777)
+    os.replace(tmp, path)
+    return True, warning
+
+
 class ClaimConflict(Exception):
     def __init__(self, row):
         super().__init__("already claimed")
@@ -297,6 +427,7 @@ class Store:
         self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.executescript(SCHEMA)
         self._migrate()
+        self.last_sync: dict = {}
 
     def _migrate(self):
         existing = {r["name"] for r in self.conn.execute("PRAGMA table_info(measurements)")}
@@ -311,6 +442,8 @@ class Store:
         pcols = {r["name"] for r in self.conn.execute("PRAGMA table_info(profiles)")}
         if "body_reference" not in pcols:
             self.conn.execute("ALTER TABLE profiles ADD COLUMN body_reference TEXT NOT NULL DEFAULT 'general'")
+        if "primary_source" not in pcols:
+            self.conn.execute("ALTER TABLE profiles ADD COLUMN primary_source TEXT NOT NULL DEFAULT 'scale'")
         if upgrading:
             # v1 databases: turn each ble-scale-sync user into a profile and keep its readings.
             rows = self.conn.execute(
@@ -368,6 +501,7 @@ class Store:
         sex = data.get("sex") if data.get("sex") in ("male", "female") else None
         athlete = 1 if data.get("athlete") else 0
         reference = data.get("body_reference") if data.get("body_reference") in BODY_REFERENCES else "general"
+        primary = data.get("primary_source") if data.get("primary_source") in COMPOSITION_SOURCES else "scale"
         color = data.get("color") if re.fullmatch(r"#[0-9a-fA-F]{6}", str(data.get("color") or "")) else None
 
         with self.lock:
@@ -379,28 +513,33 @@ class Store:
                 count = self.conn.execute("SELECT COUNT(*) FROM profiles").fetchone()[0]
                 self.conn.execute(
                     "INSERT INTO profiles (slug, name, color, height_cm, birth_date, sex, athlete, start_weight, "
-                    "body_reference, created) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    "body_reference, primary_source, created) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                     (slug, name, color or PALETTE[count % len(PALETTE)], height, birth, sex, athlete, start_weight,
-                     reference, to_iso(utc_now())),
+                     reference, primary, to_iso(utc_now())),
                 )
             else:
                 cur = self.conn.execute(
                     "UPDATE profiles SET name=?, color=COALESCE(?, color), height_cm=?, birth_date=?, sex=?, athlete=?, "
-                    "start_weight=?, body_reference=? WHERE slug=?",
-                    (name, color, height, birth, sex, athlete, start_weight, reference, slug),
+                    "start_weight=?, body_reference=?, primary_source=? WHERE slug=?",
+                    (name, color, height, birth, sex, athlete, start_weight, reference, primary, slug),
                 )
                 if cur.rowcount == 0:
                     raise KeyError(slug)
             self.conn.commit()
             # A new or changed reference weight can resolve readings nobody claimed.
             self.reassign_auto()
-            return dict(self.conn.execute("SELECT * FROM profiles WHERE slug=?", (slug,)).fetchone())
+            saved = dict(self.conn.execute("SELECT * FROM profiles WHERE slug=?", (slug,)).fetchone())
+        if self.get_setting("scale_profile") == slug:
+            self.sync_scale()
+        return saved
 
     def delete_profile(self, slug: str) -> bool:
         with self.lock:
             cur = self.conn.execute("DELETE FROM profiles WHERE slug=?", (slug,))
             if cur.rowcount == 0:
                 return False
+            if self.get_setting("scale_profile") == slug:
+                self.set_setting("scale_profile", None)
             # Its readings become unclaimed again; manual claims by others are untouched.
             self.conn.execute(
                 "UPDATE measurements SET profile=NULL, assign_method='none', auto_profile=NULL, confidence=0, "
@@ -410,6 +549,62 @@ class Store:
             self.conn.commit()
             self.reassign_auto()
             return True
+
+    # --- settings and the scale profile -------------------------------------
+    def get_setting(self, key: str) -> str | None:
+        with self.lock:
+            r = self.conn.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
+        return r["value"] if r else None
+
+    def set_setting(self, key: str, value: str | None):
+        with self.lock:
+            if value is None:
+                self.conn.execute("DELETE FROM settings WHERE key=?", (key,))
+            else:
+                self.conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
+            self.conn.commit()
+
+    def set_scale_profile(self, slug: str | None) -> dict:
+        if slug is not None and slug not in self._profile_map():
+            raise ValueError("unknown profile")
+        self.set_setting("scale_profile", slug)
+        return self.sync_scale()
+
+    def sync_scale(self) -> dict:
+        """Write the chosen scale profile into ble-scale-sync's config.yaml (it reloads it before
+        the next scan). Returns the status the Settings tab shows."""
+        slug = self.get_setting("scale_profile")
+        status: dict = {"scale_profile": slug, "config": str(BSS_CONFIG), "checked": to_iso(utc_now())}
+        if not slug:
+            status.update(ok=True, message="Not managed: ble-scale-sync uses the profile in its own config.yaml.")
+            self.last_sync = status
+            return status
+        with self.lock:
+            p = self._profile_map().get(slug)
+            last = self.conn.execute(
+                "SELECT weight FROM measurements WHERE profile=? ORDER BY ts DESC LIMIT 1", (slug,)
+            ).fetchone()
+        age = age_on(p.get("birth_date"), utc_now()) if p else None
+        if not p or not p.get("height_cm") or age is None or p.get("sex") not in ("male", "female"):
+            status.update(ok=False, message="The scale profile needs height, birth date and sex.")
+            self.last_sync = status
+            return status
+        byte = profile_byte(p["sex"], age)
+        status.update(profile_byte=f"{byte:02x}", age=age, sex=p["sex"], height_cm=p["height_cm"])
+        try:
+            changed, warning = write_bss_config(BSS_CONFIG, p, byte, last["weight"] if last else None)
+            bss_slug = first_user_slug(BSS_CONFIG)
+            if bss_slug:
+                self.set_setting("bss_slug", bss_slug)
+            status.update(ok=True, changed=changed,
+                          message=("Updated" if changed else "Already up to date") + f" ({BSS_CONFIG.name}).")
+            if warning:
+                status["warning"] = warning
+        except (OSError, ValueError) as exc:
+            status.update(ok=False, message=f"Could not update {BSS_CONFIG}: {exc}")
+        self.last_sync = status
+        log.info("Scale profile sync: %s", status["message"])
+        return status
 
     # --- auto-assignment ---------------------------------------------------
     # Each person's reference weight is the median of their trusted readings nearest in
@@ -540,10 +735,11 @@ class Store:
                 return dup["id"], "updated", dup["profile"]
 
             prof, guess, conf = self.estimate(float(weight), ts, user_slug) if assign else (None, None, 0.0)
+            scale_for = self.get_setting("scale_profile") if ts >= utc_now() - timedelta(hours=1) else None
             cols = ["ts", "user_slug", "user_name", *METRIC_FIELDS, "raw",
-                    "profile", "assign_method", "auto_profile", "confidence"]
+                    "profile", "assign_method", "auto_profile", "confidence", "scale_for"]
             row = [to_iso(ts), user_slug, user_name, *(values[f] for f in METRIC_FIELDS), json.dumps(payload),
-                   prof, "auto" if prof else "none", guess, conf]
+                   prof, "auto" if prof else "none", guess, conf, scale_for]
             cur = self.conn.execute(
                 f"INSERT INTO measurements ({', '.join(chr(34) + c + chr(34) for c in cols)}) "
                 f"VALUES ({', '.join('?' for _ in cols)})",
@@ -589,6 +785,7 @@ class Store:
     def _present(self, rows) -> list[dict]:
         """Rows as API objects, with body composition for the person each belongs to."""
         profiles = self._profile_map()
+        scale_profile, bss_slug = self.get_setting("scale_profile"), self.get_setting("bss_slug")
         with_impedance = {
             r[0] for r in self.conn.execute(
                 "SELECT DISTINCT profile FROM measurements WHERE profile IS NOT NULL AND impedanceTrunk100kHz > 0"
@@ -606,24 +803,44 @@ class Store:
                 if r[f] is not None:
                     d[f] = r[f]
             p = profiles.get(r["profile"]) if r["profile"] else None
-            if p and r["user_slug"] == p["slug"] and r["skeletalMusclePercent"] is not None:
-                # The scale's own analysis, computed for this person's profile byte
-                # (ble-scale-sync only sends skeletal muscle when it used it).
-                for f in PERSONAL_FIELDS:
-                    if r[f] is not None:
-                        d[f] = r[f]
-                d["composition_source"] = "scale"
-            elif p:
-                d.update(estimate_composition(r["weight"], p, parse_ts(r["ts"]), d,
-                                              impedance_only=p["slug"] in with_impedance))
-                if d.get("composition_source") == "impedance":
+            scale = None
+            if r["skeletalMusclePercent"] is not None and r["bodyFatPercent"] is not None:
+                # The scale's own analysis, computed for the profile ble-scale-sync sent it: the
+                # Scale Hub profile set as the scale profile then (scale_for). Older or imported
+                # readings only carry ble-scale-sync's user slug: its first user is taken to be
+                # today's scale profile. The analysis depends on that profile's height, so it
+                # belongs to this person only when they are that profile.
+                scale = {f: r[f] for f in SCALE_FIELDS if r[f] is not None}
+                scale["skeletalMuscleMass"] = round(r["skeletalMusclePercent"] * r["weight"] / 100, 1)
+                computed_for = r["scale_for"] or (
+                    scale_profile if scale_profile and r["user_slug"] == bss_slug else r["user_slug"])
+                scale["computed_for"] = computed_for
+                scale["mine"] = bool(p and computed_for == p["slug"])
+                d["scale"] = scale
+            if p:
+                model = estimate_composition(r["weight"], p, parse_ts(r["ts"]), d,
+                                             impedance_only=p["slug"] in with_impedance)
+                if "bmi" in model:
+                    d["bmi"] = model["bmi"]
+                if model.get("composition_source"):
+                    d["model"] = {k: model[k] for k in MODEL_FIELDS if k in model}
+                if model.get("composition_source") == "impedance":
                     # What the other equation set gives, so the two can be compared on real data.
-                    other = "general" if d.get("reference") == "east_asian" else "east_asian"
+                    other = "general" if model.get("reference") == "east_asian" else "east_asian"
                     alt = estimate_composition(r["weight"], {**p, "body_reference": other}, parse_ts(r["ts"]), d)
                     if alt.get("composition_source") == "impedance":
+                        d["model_alt"] = {"reference": other, "bodyFatPercent": alt["bodyFatPercent"],
+                                          "skeletalMuscleMass": alt["skeletalMuscleMass"]}
                         d["bodyFatPercentOther"] = alt["bodyFatPercent"]
                         d["skeletalMuscleMassOther"] = alt["skeletalMuscleMass"]
-                d["estimated"] = True
+                use_scale = scale and scale["mine"] and p.get("primary_source", "scale") != "model"
+                primary = d.get("model", {})
+                if use_scale:
+                    primary = {**primary, **{k: v for k, v in scale.items() if k not in ("computed_for", "mine")},
+                               "composition_source": "scale"}
+                for k, v in primary.items():
+                    d[k] = v
+                d["estimated"] = not use_scale
             out.append(d)
         return out
 
@@ -736,6 +953,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, {"ok": True})
         if path == "/api/profiles":
             return self._json(200, self.store.profiles())
+        if path == "/api/settings":
+            return self._json(200, {"scale_profile": self.store.get_setting("scale_profile"),
+                                    "sync": self.store.last_sync})
         if path == "/api/recent":
             # Latest weigh-ins from everyone, for the "who was this?" inbox.
             return self._json(200, self.store.query(None, None, limit=int(q.get("limit", 15)), order="DESC"))
@@ -768,6 +988,13 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(201 if status == "created" else 200, {"id": mid, "status": status, "profile": prof})
             if path == "/api/profiles":
                 return self._json(201, self.store.save_profile(self._body()))
+            if path == "/api/settings":
+                body = self._body()
+                if "scale_profile" in body:
+                    sync = self.store.set_scale_profile(body["scale_profile"] or None)
+                else:
+                    sync = self.store.sync_scale()
+                return self._json(200, {"scale_profile": self.store.get_setting("scale_profile"), "sync": sync})
             m = re.fullmatch(r"/api/profiles/([a-z0-9-]+)", path)
             if m:
                 return self._json(200, self.store.save_profile(self._body(), m.group(1)))
@@ -823,7 +1050,14 @@ class Handler(BaseHTTPRequestHandler):
     def _csv(self, rows: list[dict]):
         buf = io.StringIO()
         cols = ["id", "ts", "profile", "assign_method", "confidence", "composition_source", *METRIC_FIELDS,
-                "skeletalMuscleMass", "impedance50kHz", "impedanceRatio"]
+                "skeletalMuscleMass", "impedance50kHz", "impedanceRatio",
+                *(f"scale_{f}" for f in SCALE_FIELDS), "scale_computed_for",
+                *(f"model_{f}" for f in ("bodyFatPercent", "skeletalMuscleMass", "skeletalMusclePercent", "reference"))]
+        for r in rows:
+            for f, v in (r.get("scale") or {}).items():
+                r[f"scale_{f}"] = v
+            for f, v in (r.get("model") or {}).items():
+                r[f"model_{f}"] = v
         writer = csv.DictWriter(buf, fieldnames=cols, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(rows)
@@ -848,6 +1082,16 @@ def main(argv=None):
         created, skipped = import_jsonl(store, Path(args.import_jsonl))
         print(f"Imported {created} readings, skipped {skipped}.")
         return 0
+
+    def resync():
+        try:
+            store.sync_scale()
+        except Exception:  # never let the timer thread die
+            log.exception("scale profile sync failed")
+        t = threading.Timer(RESYNC_SECONDS, resync)
+        t.daemon = True
+        t.start()
+    resync()
 
     Handler.store = store
     Handler.api_token = os.environ.get("SCALE_HUB_TOKEN") or None

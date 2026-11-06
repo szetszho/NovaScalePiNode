@@ -57,12 +57,16 @@ Strava, Intervals.icu, Home Assistant (MQTT), InfluxDB and others work the same 
 
 ## Body composition
 
-Each weigh-in's body composition comes from the best source available, and the note under
-the chart says which one was used:
+Every weigh-in keeps **both** the scale's own analysis and Scale Hub's model, side by side
+(Body tab), and each person chooses which one their cards and charts show first
+(*Show first* in their profile). The **Body tab** has a body map (left/right lean balance, or
+lean change against about 30 days ago), the fat / muscle / other-lean split for each source,
+and a scale-vs-model table. Why the two can differ by 10 points or more:
+[docs/rmsc04-notes.md](docs/rmsc04-notes.md#5-why-the-scale-and-the-model-disagree-so-much).
 
-1. **The scale's own analysis.** This needs `ble.rmsc04_profile_byte` (see below) and only
-   applies to the one person it was captured for.
-2. **Calculated from the scale's segment impedance (default).** When you stand barefoot,
+1. **The scale's own analysis (Renpho).** The numbers the Renpho app shows, for the person set
+   as the **scale profile** (see below). It follows height, weight and impedance, not sex or age.
+2. **Scale Hub's model, from the scale's segment impedance.** When you stand barefoot,
    hold the handle and stay on until the display shows results, the Nova sends ten raw
    impedances: trunk, both arms and both legs, at 20 and 100 kHz. Scale Hub turns them into:
    - **Whole-body impedance at 50 kHz:** arm + trunk + leg averaged over both sides, with
@@ -112,13 +116,22 @@ validated in Japanese or Korean adults, and the 2.45 kg is an average offset. Fo
 backgrounds (Indian, Pakistani and others), body fat at a given BMI is higher still, and no
 equation here was built for them.
 
-### The scale's own body fat (`rmsc04_profile_byte`)
+### Scale profile (Settings tab)
 
-To use the scale's own body fat, skeletal muscle and visceral fat for one person, set
-`ble.rmsc04_profile_byte` in `~/ble-scale-sync/config.yaml`. The byte comes from one Android
-Bluetooth HCI log of the Renpho app. Steps:
-<https://blescalesync.dev/guide/scales/renpho#own-body-fat>. That person's user in
-`config.yaml` needs the same slug as their Scale Hub profile.
+At the start of each weigh-in ble-scale-sync sends the scale one profile, and the scale computes
+its own analysis for it, before anyone knows who is on the scale. In **Settings → Scale profile**
+pick that person. Scale Hub then writes their name, height, birth date, sex, athlete flag and last
+weight into the first user of `~/ble-scale-sync/config.yaml`, plus `ble.rmsc04_profile_byte`
+worked out from sex and age (`0x80` for male + age in years). It re-checks every 6 hours, so the
+byte follows birthdays. ble-scale-sync reloads the file before its next scan. Comments, exporters
+and other users in the file are left as they are, and so is the user's slug (Garmin keeps its
+login per slug).
+
+The scale's figures are shown for the scale profile only; everyone else gets the model. Keep
+**one user** in `config.yaml` for this: every weigh-in is then matched to it, so the scale's
+figures and impedances come through for everyone, and Scale Hub works out who it was. With
+several users there (for example Garmin per person), weigh-ins matched to the others still get
+impedances and the model, but not the scale's own figures.
 
 ## Household (multi-user, no login)
 

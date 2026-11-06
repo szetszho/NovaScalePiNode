@@ -7,18 +7,21 @@
 <meta name="theme-color" content="#0f766e">
 <style>
 :root {
-  --bg: #f6f7f9; --card: #ffffff; --ink: #14181f; --muted: #667085; --line: #e4e7ec;
+  --bg: #f4f6f8; --card: #ffffff; --ink: #14181f; --muted: #667085; --line: #e4e7ec;
   --accent: #0f766e; --up: #b42318; --down: #027a48; --grid: #eef0f3; --warn-bg: #fff7e6; --warn: #b45309;
+  --fat: #f59e0b; --muscle: #0f766e; --lean: #94a3b8; --body: #e8ecf1; --body-edge: #cdd5df;
+  --shadow: 0 1px 2px #1018280d, 0 1px 3px #1018281a;
 }
 @media (prefers-color-scheme: dark) {
   :root { --bg: #0d1117; --card: #161b22; --ink: #e6edf3; --muted: #8b949e; --line: #262c36;
-          --up: #f97066; --down: #4ade80; --grid: #20262f; --warn-bg: #2a2111; --warn: #fbbf24; }
+          --up: #f97066; --down: #4ade80; --grid: #20262f; --warn-bg: #2a2111; --warn: #fbbf24;
+          --fat: #fbbf24; --muscle: #2dd4bf; --lean: #64748b; --body: #222a35; --body-edge: #333c49; --shadow: none; }
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--ink);
        font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 .wrap { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
-header { padding: 16px 0 4px; }
+header { padding: 16px 0 0; }
 .top { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
 h1 { font-size: 20px; margin: 0; letter-spacing: -0.01em; }
 h1 small { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 8px; }
@@ -29,8 +32,8 @@ button { cursor: pointer; }
 button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 button.ghost { background: transparent; }
 button.danger { color: var(--up); }
-.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-.seg button { border: 0; border-radius: 0; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--card); }
+.seg button { border: 0; border-radius: 0; background: transparent; }
 .seg button.on { background: var(--accent); color: #fff; }
 
 /* profile picker */
@@ -41,33 +44,73 @@ button.danger { color: var(--up); }
 .avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--pc); color: #fff; display: grid;
           place-items: center; font-size: 13px; font-weight: 700; flex: none; }
 .avatar.sm { width: 20px; height: 20px; font-size: 11px; }
+.avatar.lg { width: 40px; height: 40px; font-size: 17px; }
 .person .edit { color: var(--muted); font-size: 13px; padding: 0 0 0 2px; border: 0; background: none; }
 .person.add { padding: 5px 12px; color: var(--muted); border-style: dashed; }
 
-main { padding-bottom: 40px; }
-.panel { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 16px; }
-.panel h2 { font-size: 15px; margin: 0 0 8px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-.muted { color: var(--muted); font-weight: 400; font-size: 13px; }
-.inbox.attn { border-color: var(--warn); background: var(--warn-bg); }
+/* tabs */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin: 4px 0 16px; overflow-x: auto; scrollbar-width: none; }
+.tabs button { border: 0; background: none; border-radius: 0; padding: 10px 14px; color: var(--muted); font-weight: 550;
+               border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; }
+.tabs button.on { color: var(--ink); border-bottom-color: var(--pc, var(--accent)); }
+.tabs .dot { display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 999px; background: var(--warn); color: #fff;
+             font-size: 11px; line-height: 18px; margin-left: 6px; text-align: center; }
 
-.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin: 4px 0 16px; }
-.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; cursor: pointer; }
+main { padding-bottom: 40px; }
+.panel { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 16px; box-shadow: var(--shadow); }
+.panel h2 { font-size: 15px; margin: 0 0 10px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.panel h3 { font-size: 13px; margin: 14px 0 6px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.muted { color: var(--muted); font-weight: 400; font-size: 13px; }
+.note { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+.inbox.attn { border-color: var(--warn); background: var(--warn-bg); }
+.grid2 { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 760px) { .grid2 { grid-template-columns: minmax(0, 1fr); } }
+.grid2 > * { min-width: 0; }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; margin: 0 0 16px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; cursor: pointer; box-shadow: var(--shadow); }
 .card.on { outline: 2px solid var(--pc, var(--accent)); outline-offset: -1px; }
-.card .k { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+.card .k { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; display: flex; justify-content: space-between; align-items: flex-start; gap: 4px; }
 .card .v { font-size: 24px; font-weight: 650; font-variant-numeric: tabular-nums; margin-top: 2px; }
 .card .v span { font-size: 13px; color: var(--muted); font-weight: 400; margin-left: 3px; }
 .card .d { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--muted); }
+.card .alt { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; margin-top: 2px; }
+.src { white-space: nowrap; align-self: flex-start; font-size: 10px; letter-spacing: .02em; text-transform: none; padding: 0 6px; border-radius: 999px; border: 1px solid var(--line); }
+.src.scale { color: var(--accent); border-color: currentColor; }
 .d .up { color: var(--up); } .d .down { color: var(--down); }
 @media (max-width: 520px) { .cards { grid-template-columns: repeat(2, 1fr); gap: 8px; } .card { padding: 10px 12px; } .card .v { font-size: 21px; } }
 
 #chart { width: 100%; height: 280px; display: block; }
 #chart text { fill: var(--muted); font-size: 11px; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 6px; }
+.legend i { display: inline-block; width: 18px; height: 0; border-top: 2.5px solid var(--pc); vertical-align: middle; margin-right: 5px; }
+.legend i.dash { border-top: 2px dashed var(--muted); }
 .tip { position: fixed; pointer-events: none; background: var(--ink); color: var(--bg); padding: 6px 8px;
        border-radius: 6px; font-size: 12px; display: none; white-space: nowrap; z-index: 10; }
 .segments { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
-.segments div { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-variant-numeric: tabular-nums; }
+.segments div { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font-variant-numeric: tabular-nums; }
 .segments .sub { display: block; font-size: 12px; color: var(--muted); }
 .segments b { display: block; font-size: 12px; color: var(--muted); font-weight: 500; }
+
+/* body figure */
+.figure { width: 100%; max-width: 380px; display: block; margin: 0 auto; }
+.figure text { fill: var(--ink); font-size: 11px; }
+.figure .lbl { font-weight: 650; font-size: 12px; }
+.figure .sub { fill: var(--muted); font-size: 10.5px; }
+.figure .hero { font-size: 22px; font-weight: 750; fill: var(--ink); }
+.figure .heroK { font-size: 10px; fill: var(--muted); letter-spacing: .06em; }
+.scale-bar { display: flex; height: 22px; border-radius: 6px; overflow: hidden; background: var(--grid); }
+.scale-bar span { display: block; height: 100%; }
+.bars { display: grid; gap: 10px; }
+.bars .row { display: grid; grid-template-columns: 112px 1fr; gap: 10px; align-items: center; font-size: 13px; }
+.bars .row b { font-weight: 600; }
+.keys { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--muted); margin-top: 8px; }
+.keys i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.big { display: flex; gap: 22px; flex-wrap: wrap; margin-bottom: 12px; }
+.big div { min-width: 90px; }
+.big .k { font-size: 12px; color: var(--muted); }
+.big .v { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.big .v span { font-size: 13px; font-weight: 400; color: var(--muted); margin-left: 2px; }
 
 /* weigh-in rows (inbox + history) */
 .wi { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; align-items: center; padding: 9px 0; border-top: 1px solid var(--line); }
@@ -75,8 +118,10 @@ main { padding-bottom: 40px; }
 .wi .when { font-size: 13px; color: var(--muted); }
 .wi .w { font-weight: 650; font-variant-numeric: tabular-nums; font-size: 17px; margin-right: 8px; }
 .who { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
-.badge { font-size: 11px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.badge { font-size: 11px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
 .badge.unclaimed { border-color: var(--warn); color: var(--warn); }
+.badge.ok { border-color: var(--down); color: var(--down); }
+.badge.bad { border-color: var(--up); color: var(--up); }
 .acts { display: flex; gap: 6px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
 .acts select { padding: 5px 6px; font-size: 13px; max-width: 150px; }
 .acts button { padding: 5px 10px; font-size: 13px; }
@@ -88,12 +133,25 @@ th, td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--lin
 th:first-child, td:first-child { text-align: left; }
 th { color: var(--muted); font-weight: 500; }
 td select { padding: 2px 4px; font-size: 12px; }
+td.pri { font-weight: 650; }
 .empty { text-align: center; padding: 40px 16px; color: var(--muted); }
 .empty b { color: var(--ink); }
 a { color: var(--accent); }
 
+/* settings */
+.plist { display: grid; gap: 8px; }
+.prow { display: flex; align-items: center; gap: 12px; padding: 10px; border: 1px solid var(--line); border-radius: 12px; }
+.prow .info { flex: 1; min-width: 0; }
+.prow .info b { display: block; }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; font-size: 13px; margin-top: 10px; }
+.kv dt { color: var(--muted); } .kv dd { margin: 0; font-variant-numeric: tabular-nums; }
+.callout { border-radius: 10px; padding: 10px 12px; font-size: 13px; margin-top: 10px; border: 1px solid var(--line); }
+.callout.ok { border-color: var(--down); } .callout.bad { border-color: var(--up); background: var(--warn-bg); }
+.callout.warn { border-color: var(--warn); background: var(--warn-bg); }
+code { font-size: 12px; background: var(--grid); padding: 1px 5px; border-radius: 4px; }
+
 dialog { border: 1px solid var(--line); border-radius: 14px; background: var(--card); color: var(--ink);
-         padding: 18px; width: min(420px, calc(100vw - 32px)); }
+         padding: 18px; width: min(440px, calc(100vw - 32px)); }
 dialog::backdrop { background: #0006; }
 dialog h3 { margin: 0 0 12px; }
 .form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -123,6 +181,7 @@ dialog h3 { margin: 0 0 12px; }
     </div>
   </div>
   <nav class="people" id="people" aria-label="Who is looking"></nav>
+  <nav class="tabs" id="tabs" role="tablist"></nav>
 </header>
 <main class="wrap"><div id="app"></div></main>
 <div class="tip" id="tip"></div>
@@ -137,11 +196,15 @@ dialog h3 { margin: 0 0 12px; }
       <label>Birth date<input name="birth_date" type="date"></label>
       <label>Sex<select name="sex"><option value="">–</option><option value="male">Male</option><option value="female">Female</option></select></label>
       <label>Usual weight (kg)<input name="start_weight" type="number" step="0.1" min="2" max="400" inputmode="decimal"></label>
-      <p class="hint">Usual weight lets new weigh-ins be matched to this person before they have any history. Height, birth date and sex are needed for BMI and body-fat estimates.</p>
+      <p class="hint">Usual weight lets new weigh-ins be matched to this person before they have any history. Height, birth date and sex are needed for BMI and body composition, and for sending this person's profile to the scale.</p>
       <label class="full">Body composition reference<select name="body_reference">
         <option value="general">General</option>
         <option value="east_asian">East Asian</option></select></label>
-      <p class="hint">Picks the published equations that turn the scale's impedance into body fat and muscle, and the BMI categories. General: NHANES III, BMI 25 / 30. East Asian (Chinese, Japanese, Korean and similar): Chinese-adult equations, WHO Asia BMI 23 / 27.5.</p>
+      <p class="hint">Which published equations the model uses. General: NHANES III, BMI 25 / 30. East Asian (Chinese, Japanese, Korean and similar): Chinese-adult equations, WHO Asia BMI 23 / 27.5.</p>
+      <label class="full">Show first<select name="primary_source">
+        <option value="scale">The scale's own analysis (as in the Renpho app)</option>
+        <option value="model">Scale Hub's model (published equations)</option></select></label>
+      <p class="hint">Both are kept for every weigh-in and shown side by side on the Body tab. The scale's analysis only exists for the person set as the scale profile (Settings).</p>
       <label class="check"><input type="checkbox" name="athlete"> Athlete (trains 8+ hours a week)</label>
     </div>
     <div class="err" id="perr"></div>
@@ -158,24 +221,25 @@ dialog h3 { margin: 0 0 12px; }
 <script>
 const METRICS = [
   { key: "weight", label: "Weight", unit: "mass", dp: 1, lowerIsGood: true },
-  { key: "bodyFatPercent", label: "Body fat", unit: "%", dp: 1, lowerIsGood: true },
-  { key: "muscleMass", label: "Muscle", unit: "mass", dp: 1, lowerIsGood: false },
-  { key: "skeletalMuscleMass", label: "Skeletal muscle", unit: "mass", dp: 1, lowerIsGood: false },
-  { key: "skeletalMusclePercent", label: "Skeletal muscle %", unit: "%", dp: 1, lowerIsGood: false },
-  { key: "waterPercent", label: "Water", unit: "%", dp: 1, lowerIsGood: false },
-  { key: "visceralFat", label: "Visceral fat", unit: "", dp: 0, lowerIsGood: true },
-  { key: "boneMass", label: "Bone", unit: "mass", dp: 1, lowerIsGood: false },
+  { key: "bodyFatPercent", label: "Body fat", unit: "%", dp: 1, lowerIsGood: true, both: true },
+  { key: "skeletalMuscleMass", label: "Skeletal muscle", unit: "mass", dp: 1, lowerIsGood: false, both: true },
+  { key: "skeletalMusclePercent", label: "Skeletal muscle %", unit: "%", dp: 1, lowerIsGood: false, both: true },
+  { key: "muscleMass", label: "Muscle", unit: "mass", dp: 1, lowerIsGood: false, both: true },
+  { key: "waterPercent", label: "Water", unit: "%", dp: 1, lowerIsGood: false, both: true },
+  { key: "visceralFat", label: "Visceral fat", unit: "", dp: 0, lowerIsGood: true, both: true },
+  { key: "boneMass", label: "Bone", unit: "mass", dp: 1, lowerIsGood: false, both: true },
   { key: "bmi", label: "BMI", unit: "", dp: 1, lowerIsGood: true },
   { key: "bmr", label: "BMR", unit: "kcal", dp: 0, lowerIsGood: false },
   { key: "metabolicAge", label: "Metabolic age", unit: "yr", dp: 0, lowerIsGood: true },
 ];
 const SEGMENTS = ["Trunk", "LeftArm", "RightArm", "LeftLeg", "RightLeg"];
 const PALETTE = ["#0f766e", "#7c3aed", "#c2410c", "#2563eb", "#be185d", "#4d7c0f", "#b45309", "#0e7490"];
+const TABS = [["overview", "Overview"], ["body", "Body"], ["history", "History"], ["settings", "Settings"]];
 
 const state = {
-  days: localGet("days", "90"), unit: localGet("unit", "kg"),
-  me: localGet("me", ""), metric: localGet("metric", "weight"),
-  profiles: [], rows: [], all: [], recent: [], unclaimed: [],
+  days: localGet("days", "90"), unit: localGet("unit", "kg"), tab: localGet("tab", "overview"),
+  me: localGet("me", ""), metric: localGet("metric", "weight"), bodyMode: localGet("bodyMode", "balance"),
+  profiles: [], rows: [], all: [], recent: [], unclaimed: [], settings: { scale_profile: null, sync: {} },
 };
 
 function localGet(k, d) { try { return localStorage.getItem("sh." + k) ?? d; } catch { return d; } }
@@ -188,7 +252,7 @@ const getJSON = (path) => api(path).then((r) => r.json());
 function conv(m, v) { return m.unit === "mass" && state.unit === "lb" ? v * 2.20462 : v; }
 function unitLabel(m) { return m.unit === "mass" ? state.unit : m.unit; }
 function fmt(m, v) { return v == null ? "–" : conv(m, v).toFixed(m.dp); }
-function fmtW(kg) { return (state.unit === "lb" ? kg * 2.20462 : kg).toFixed(1) + " " + state.unit; }
+function fmtW(kg) { return kg == null ? "–" : (state.unit === "lb" ? kg * 2.20462 : kg).toFixed(1) + " " + state.unit; }
 function dateLabel(iso, withTime) {
   const d = new Date(iso);
   return withTime ? d.toLocaleString([], { dateStyle: "medium", timeStyle: "short" })
@@ -204,15 +268,31 @@ function relTime(iso) {
 }
 const prof = (slug) => state.profiles.find((p) => p.slug === slug);
 const nameOf = (slug) => prof(slug)?.name ?? slug;
-function avatar(p, sm) { return `<span class="avatar ${sm ? "sm" : ""}" style="--pc:${p.color}">${esc((p.name || "?")[0].toUpperCase())}</span>`; }
+function avatar(p, size) { return `<span class="avatar ${size || ""}" style="--pc:${p.color}">${esc((p.name || "?")[0].toUpperCase())}</span>`; }
+function ageOf(birth) {
+  if (!birth) return null;
+  const b = new Date(birth + "T00:00:00"), n = new Date();
+  return n.getFullYear() - b.getFullYear() - ((n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) ? 1 : 0);
+}
+const MODEL_NAMES = { general: "Model · General", east_asian: "Model · East Asian" };
+const SRC_LABEL = { scale: "scale", impedance: "model", bmi: "estimate" };
+
+// The other source's value for the same weigh-in, for cards and the dashed chart line.
+function secondary(r, key) {
+  if (!r) return null;
+  if (r.composition_source === "scale") return r.model?.composition_source === "impedance" ? r.model?.[key] ?? null : null;
+  return r.scale?.mine ? r.scale[key] ?? null : null;
+}
+const secondaryName = (r) => r?.composition_source === "scale" ? "model" : "scale";
 
 // ---------- data ----------
 async function load() {
-  state.profiles = await getJSON("/api/profiles");
+  const [profiles, settings] = await Promise.all([getJSON("/api/profiles"), getJSON("/api/settings")]);
+  state.profiles = profiles; state.settings = settings;
   if (state.me && !prof(state.me)) state.me = "";
   if (!state.me && state.profiles.length) state.me = state.profiles[0].slug;
   const [recent, unclaimed] = await Promise.all([
-    getJSON("/api/recent?limit=8"),
+    getJSON("/api/recent?limit=15"),
     getJSON("/api/measurements?profile=_unassigned&days=30"),
   ]);
   state.recent = recent; state.unclaimed = unclaimed.reverse();
@@ -248,7 +328,7 @@ function whoHtml(r) {
   if (r.profile) {
     const p = prof(r.profile);
     const tag = r.assign_method === "manual" ? "claimed" : `auto ${Math.round((r.confidence ?? 0) * 100)}%`;
-    return `<span class="who">${p ? avatar(p, true) : ""}${esc(nameOf(r.profile))} <span class="badge">${tag}</span></span>`;
+    return `<span class="who">${p ? avatar(p, "sm") : ""}${esc(nameOf(r.profile))} <span class="badge">${tag}</span></span>`;
   }
   if (r.assign_method === "manual") return `<span class="who"><span class="badge">guest</span></span>`;
   const guess = r.auto_profile && prof(r.auto_profile) ? ` · maybe ${esc(nameOf(r.auto_profile))}?` : "";
@@ -268,17 +348,33 @@ function weighInRow(r) {
   const mine = state.me && r.profile === state.me;
   const settled = r.profile && (r.assign_method === "manual" || (r.confidence ?? 0) >= 0.6);
   const meBtn = state.me && !mine ? `<button class="${settled ? "" : "primary"}" data-claim="${r.id}">That's me</button>` : "";
+  const extra = r.impedanceTrunk100kHz ? `<span class="badge" title="The scale sent its segment impedances">body scan</span>` : "";
   return `<div class="wi">
-    <div><span class="w">${fmtW(r.weight)}</span><span class="when">${esc(relTime(r.ts))}</span><div>${whoHtml(r)}</div></div>
+    <div><span class="w">${fmtW(r.weight)}</span><span class="when">${esc(relTime(r.ts))}</span> ${extra}<div>${whoHtml(r)}</div></div>
     <div class="acts">${meBtn}${assignSelect(r)}</div></div>`;
 }
 
-// ---------- rendering ----------
+function inboxPanel(limit) {
+  const seen = new Set();
+  const rows = [...state.unclaimed.slice(0, 6), ...state.recent].filter((r) => !seen.has(r.id) && seen.add(r.id)).slice(0, limit);
+  if (!rows.length) return "";
+  const n = state.unclaimed.length;
+  return `<div class="panel inbox ${n ? "attn" : ""}">
+    <h2>${n ? `${n} weigh-in${n > 1 ? "s" : ""} need${n > 1 ? "" : "s"} a name` : "Recent weigh-ins"}
+      <span class="muted">Not right? Tap "That's me" or pick who it was.</span></h2>
+    ${rows.map(weighInRow).join("")}</div>`;
+}
+
+// ---------- shell ----------
 function renderPeople() {
   $("#people").innerHTML = state.profiles.map((p) => `
     <button class="person ${p.slug === state.me ? "on" : ""}" style="--pc:${p.color}" data-me="${esc(p.slug)}">
-      ${avatar(p)}${esc(p.name)}${p.slug === state.me ? `<span class="edit" data-edit="${esc(p.slug)}" title="Edit profile">✎</span>` : ""}
+      ${avatar(p)}${esc(p.name)}${p.slug === state.settings.scale_profile ? ` <span title="The scale computes its own analysis for this profile">⚖</span>` : ""}${p.slug === state.me ? `<span class="edit" data-edit="${esc(p.slug)}" title="Edit profile">✎</span>` : ""}
     </button>`).join("") + `<button class="person add" data-add>+ Add person</button>`;
+}
+function renderTabs() {
+  const n = state.unclaimed.length;
+  $("#tabs").innerHTML = TABS.map(([id, label]) => `<button role="tab" data-tab="${id}" class="${state.tab === id ? "on" : ""}" aria-selected="${state.tab === id}">${label}${id === "history" && n ? `<span class="dot">${n}</span>` : ""}</button>`).join("");
 }
 
 function lastWith(key) {
@@ -290,7 +386,9 @@ function deltaVs(m, daysAgo) {
   if (!last) return null;
   const cutoff = new Date(last.ts).getTime() - daysAgo * 864e5;
   let ref = null;
-  for (const r of state.all) { if (new Date(r.ts).getTime() <= cutoff && r[m.key] != null) ref = r; }
+  // Body composition only compares like with like: the scale's figures and the model differ a lot.
+  const same = (r) => !m.both || r.composition_source === last.composition_source;
+  for (const r of state.all) { if (new Date(r.ts).getTime() <= cutoff && r[m.key] != null && same(r)) ref = r; }
   return ref ? last[m.key] - ref[m.key] : null;
 }
 function deltaHtml(m, d, tag) {
@@ -301,89 +399,71 @@ function deltaHtml(m, d, tag) {
 }
 
 function render() {
-  renderPeople();
-  const app = $("#app");
+  renderPeople(); renderTabs();
   const latest = state.recent[0];
   $("#status").textContent = latest ? `last weigh-in ${relTime(latest.ts)}` : "no data yet";
-
+  const me = prof(state.me);
+  if (me) document.documentElement.style.setProperty("--pc", me.color);
+  const app = $("#app");
+  if (state.tab === "settings") { app.innerHTML = settingsTab(); return; }
   if (!state.profiles.length) {
     app.innerHTML = `<div class="panel empty"><p><b>Who uses this scale?</b></p>
       <p>Add a profile for each person. No login: everyone picks their name at the top of the page.
       Weigh-ins are matched to people automatically by weight, and anyone can claim a weigh-in that's theirs.</p>
       <p><button class="primary" data-add>+ Add the first person</button></p>
-      ${state.recent.length ? `<p class="muted">${state.recent.length >= 8 ? "8+" : state.recent.length} weigh-ins are waiting to be assigned.</p>` : ""}</div>`;
+      ${state.recent.length ? `<p class="muted">${state.recent.length} weigh-ins are waiting to be assigned.</p>` : ""}</div>`;
     return;
   }
-
-  const me = prof(state.me);
-  document.documentElement.style.setProperty("--pc", me.color);
-
-  // Inbox: unclaimed weigh-ins first, then the latest few from everyone.
-  const seen = new Set();
-  const inboxRows = [...state.unclaimed.slice(0, 6), ...state.recent].filter((r) => !seen.has(r.id) && seen.add(r.id)).slice(0, 8);
-  const nUn = state.unclaimed.length;
-  const inbox = inboxRows.length ? `<div class="panel inbox ${nUn ? "attn" : ""}">
-    <h2>${nUn ? `${nUn} weigh-in${nUn > 1 ? "s" : ""} need${nUn > 1 ? "" : "s"} a name` : "Recent weigh-ins"}
-      <span class="muted">Not right? Tap "That's me" or pick who it was.</span></h2>
-    ${inboxRows.map(weighInRow).join("")}</div>` : "";
-
+  if (state.tab === "history") { app.innerHTML = historyTab(me); return; }
   if (!state.all.length) {
-    app.innerHTML = inbox + `<div class="panel empty"><p><b>No weigh-ins for ${esc(me.name)} yet.</b></p>
-      <p>Step on the scale and stay on until it shows the result. ${me.start_weight ? "" :
+    app.innerHTML = inboxPanel(8) + `<div class="panel empty"><p><b>No weigh-ins for ${esc(me.name)} yet.</b></p>
+      <p>Step on the scale barefoot, hold the handle and stay on until it shows the result. ${me.start_weight ? "" :
       `Setting a <a href="#" data-edit="${esc(me.slug)}">usual weight</a> helps match the first weigh-in to you, or claim one above.`}</p></div>`;
     return;
   }
+  if (state.tab === "body") { app.innerHTML = bodyTab(me); return; }
+  app.innerHTML = overviewTab(me);
+  drawChart(METRICS.find((x) => x.key === state.metric));
+}
 
+// ---------- overview ----------
+function overviewTab(me) {
   const available = METRICS.filter((m) => state.all.some((r) => r[m.key] != null));
   if (!available.some((m) => m.key === state.metric)) state.metric = "weight";
-  const anyEstimated = state.all.some((r) => r.estimated);
-
-  const cards = available.map((m) => `
-    <div class="card ${m.key === state.metric ? "on" : ""}" data-metric="${m.key}" tabindex="0">
-      <div class="k">${m.label}</div>
-      <div class="v">${fmt(m, lastWith(m.key)?.[m.key])}<span>${unitLabel(m)}</span></div>
-      <div class="d">${m.key === "bmi" ? `<b>${bmiCategory(lastWith("bmi")?.bmi, me.body_reference)}</b> · ` : ""}${[deltaHtml(m, deltaVs(m, 7), "7d"), deltaHtml(m, deltaVs(m, 30), "30d")].filter(Boolean).join(" · ") || "&nbsp;"}</div>
-    </div>`).join("");
-
-  const segHtml = segmentPanel();
-
+  const cards = available.map((m) => {
+    const last = lastWith(m.key);
+    const sec = m.both ? secondary(last, m.key) : null;
+    const src = m.both && last?.composition_source ? `<span class="src ${last.composition_source === "scale" ? "scale" : ""}">${SRC_LABEL[last.composition_source] || ""}</span>` : "";
+    return `<div class="card ${m.key === state.metric ? "on" : ""}" data-metric="${m.key}" tabindex="0">
+      <div class="k">${m.label}${src}</div>
+      <div class="v">${fmt(m, last?.[m.key])}<span>${unitLabel(m)}</span></div>
+      ${sec != null ? `<div class="alt">${secondaryName(last)} ${fmt(m, sec)} ${unitLabel(m)}</div>` : ""}
+      <div class="d">${m.key === "bmi" ? `<b>${bmiCategory(last?.bmi, me.body_reference)}</b> · ` : ""}${[deltaHtml(m, deltaVs(m, 7), "7d"), deltaHtml(m, deltaVs(m, 30), "30d")].filter(Boolean).join(" · ") || "&nbsp;"}</div>
+    </div>`;
+  }).join("");
   const m = METRICS.find((x) => x.key === state.metric);
-  const tableCols = available.slice(0, 6);
-  const rowsDesc = [...state.rows].reverse();
   const missing = [!me.height_cm && "height", !me.birth_date && "birth date", !me.sex && "sex"].filter(Boolean);
-  app.innerHTML = `
-    ${inbox}
+  const hasSecondary = m.both && state.rows.some((r) => secondary(r, m.key) != null);
+  return `${state.unclaimed.length ? inboxPanel(6) : ""}
     <div class="cards">${cards}</div>
-    ${missing.length ? `<p class="muted">Add ${missing.join(", ")} to <a href="#" data-edit="${esc(me.slug)}">${esc(me.name)}'s profile</a> for BMI and body-fat estimates.</p>` : ""}
+    ${missing.length ? `<p class="muted">Add ${missing.join(", ")} to <a href="#" data-edit="${esc(me.slug)}">${esc(me.name)}'s profile</a> for BMI and body composition.</p>` : ""}
     <div class="panel"><h2>${esc(me.name)} · ${m.label} <span class="muted">${state.rows.filter((r) => r[m.key] != null).length} readings · ${unitLabel(m) || "value"}</span></h2>
       <svg id="chart" role="img" aria-label="${m.label} over time"></svg>
-      ${anyEstimated && m.key !== "weight" ? `<p class="muted" style="margin:6px 0 0">${sourceNote(lastWith(m.key))}</p>` : ""}</div>
-    ${segHtml}
-    <div class="panel"><h2>${esc(me.name)}'s history <a href="/api/export.csv?days=all&profile=${encodeURIComponent(state.me)}" class="muted">Download CSV</a></h2>
-      <div class="table-wrap"><table>
-        <thead><tr><th>Date</th>${tableCols.map((c) => `<th>${c.label}${unitLabel(c) && !c.label.endsWith("%") ? " (" + unitLabel(c) + ")" : ""}</th>`).join("")}<th>How</th><th></th></tr></thead>
-        <tbody>${rowsDesc.map((r) => `<tr><td>${dateLabel(r.ts, true)}</td>${tableCols.map((c) => `<td>${fmt(c, r[c.key])}</td>`).join("")}
-          <td><span class="badge">${r.assign_method === "manual" ? "claimed" : "auto " + Math.round((r.confidence ?? 0) * 100) + "%"}</span></td>
-          <td>${assignSelect(r, true)}</td></tr>`).join("")}</tbody>
-      </table></div></div>`;
-  drawChart(m);
+      ${hasSecondary ? `<div class="legend"><span><i></i>Shown first (7-reading average)</span><span><i class="dash"></i>Other source</span></div>` : ""}
+      ${m.both ? `<p class="note">${sourceNote(lastWith(m.key))}</p>` : ""}</div>
+    ${state.unclaimed.length ? "" : inboxPanel(5)}`;
 }
 
 const SOURCE_NOTES = {
-  scale: "From the scale's own analysis for your profile.",
-  impedance: "Calculated from the scale's segment impedance: fat-free mass from the NHANES III equations, skeletal muscle from Janssen et al. 2000. Typical error about ±3–4 % body fat.",
-  impedance_east_asian: "Calculated from the scale's segment impedance with East Asian equations: fat-free mass from Chen et al. 2016 (704 Chinese adults, checked against DXA), skeletal muscle from Janssen et al. 2000 plus the 2.45 kg it underestimates in Asians. Typical error about ±3–4 % body fat.",
-  bmi: "Estimated from weight, height, age and sex (no impedance in this weigh-in). Stay on the scale holding the handle until it shows results to get the impedance-based figures.",
+  scale: "Shown first: the scale's own analysis, the same figures the Renpho app shows. It depends on weight, height and impedance (not on sex or age).",
+  impedance: "Shown first: Scale Hub's model from the scale's segment impedance. Fat-free mass from the NHANES III equations, skeletal muscle from Janssen et al. 2000. Typical error about ±3–4 % body fat.",
+  impedance_east_asian: "Shown first: Scale Hub's model with East Asian equations. Fat-free mass from Chen et al. 2016 (704 Chinese adults, checked against DXA), skeletal muscle from Janssen et al. 2000 plus 2.45 kg. Typical error about ±3–4 % body fat.",
+  bmi: "Estimated from weight, height, age and sex (no impedance in this weigh-in). Stay on the scale holding the handle until it shows results to get a body scan.",
 };
 function sourceNote(r) {
   if (!r) return SOURCE_NOTES.bmi;
   const src = r.composition_source;
-  let note = (src === "impedance" && r.reference === "east_asian" ? SOURCE_NOTES.impedance_east_asian : SOURCE_NOTES[src]) || SOURCE_NOTES.bmi;
-  if (src === "impedance" && r.bodyFatPercentOther != null) {
-    const other = r.reference === "east_asian" ? "General" : "East Asian";
-    note += ` ${other} equations on the same weigh-in: ${r.bodyFatPercentOther.toFixed(1)} % body fat, ${fmtW(r.skeletalMuscleMassOther)} skeletal muscle.`;
-  }
-  return note;
+  return (src === "impedance" && r.reference === "east_asian" ? SOURCE_NOTES.impedance_east_asian : SOURCE_NOTES[src]) || SOURCE_NOTES.bmi;
 }
 // WHO cut-offs; for Asian populations the 2004 WHO consultation added action points at 23 and 27.5.
 function bmiCategory(bmi, reference) {
@@ -393,24 +473,162 @@ function bmiCategory(bmi, reference) {
   return bmi < 25 ? "Healthy" : bmi < 30 ? "Overweight" : "Obese";
 }
 
+// ---------- body ----------
 const segZ = (r, s, f) => r?.["impedance" + s + f];
-const segLabel = (s) => s.replace(/([A-Z])/g, " $1").trim();
-// Lean tissue conducts; for the same limb length, lean volume goes as 1/impedance.
+const SEG_NAME = { Trunk: "Trunk", LeftArm: "Left arm", RightArm: "Right arm", LeftLeg: "Left leg", RightLeg: "Right leg" };
+// Lean tissue conducts; for the same limb, lean volume goes as 1/impedance.
 // 100 kHz passes through cells, so it reflects all body water in the segment.
 function leanDiffPct(zA, zB) { return zA && zB ? (zB / zA - 1) * 100 : null; }
 function signed(v, dp = 1) { return (v > 0 ? "+" : "") + v.toFixed(dp); }
-
-function segmentPanel() {
-  const src = lastWith("impedanceTrunk100kHz");
-  if (!src) return "";
+function refFor(src) {
   const t = new Date(src.ts).getTime();
   let ref = null;
   for (const r of state.all) if (segZ(r, "Trunk", "100kHz") && new Date(r.ts).getTime() <= t - 25 * 864e5) ref = r;
+  return ref;
+}
+
+function bodyTab(me) {
+  const scan = lastWith("impedanceTrunk100kHz");
+  const latest = state.all[state.all.length - 1];
+  const r = scan || latest;
+  if (!scan) {
+    return `<div class="panel empty"><p><b>No body scan yet.</b></p><p>Step on barefoot, hold the handle with both hands and stay on until
+      the scale shows the full result (about 15 seconds after the weight settles). The scale then sends ten impedances: trunk,
+      both arms and both legs, at 20 and 100 kHz.</p></div>`;
+  }
+  const ref = refFor(scan);
+  const mode = state.bodyMode === "change" && ref ? "change" : "balance";
+  return `<div class="grid2">
+      <div class="panel"><h2>Body map <span class="muted">${dateLabel(scan.ts, true)}</span></h2>
+        ${ref ? `<div class="seg" role="group" aria-label="Colour by" style="margin-bottom:8px">
+          <button data-bmode="balance" class="${mode === "balance" ? "on" : ""}">Left / right</button>
+          <button data-bmode="change" class="${mode === "change" ? "on" : ""}">vs ${dateLabel(ref.ts)}</button></div>` : ""}
+        ${bodyFigure(scan, ref, mode)}
+        <p class="note">${mode === "balance"
+          ? "Each limb is compared with the other side: the leaner side is shaded, more strongly the bigger the difference."
+          : "Green: more lean tissue than on " + dateLabel(ref.ts) + ". Orange: less."}
+          Based on impedance at 100 kHz: lower impedance means more lean tissue and water. Hydration moves it too, so compare weigh-ins taken at the same time of day.</p>
+      </div>
+      <div>${compositionPanel(r, me)}</div>
+    </div>
+    ${segmentPanel(scan, ref)}`;
+}
+
+function shade(hex, a) { return `color-mix(in srgb, ${hex} ${Math.round(a * 100)}%, var(--body))`; }
+function bodyFigure(src, ref, mode) {
+  const z = (s) => segZ(src, s, "100kHz");
+  const fill = {}, note = {};
+  const accent = "var(--pc)";
+  for (const s of SEGMENTS) { fill[s] = "var(--body)"; note[s] = ""; }
+  if (mode === "balance") {
+    for (const [a, b] of [["LeftArm", "RightArm"], ["LeftLeg", "RightLeg"]]) {
+      const d = leanDiffPct(z(a), z(b)); // >0: left has lower impedance = leaner
+      if (d == null) continue;
+      const lean = d >= 0 ? a : b, other = lean === a ? b : a, pct = Math.abs(d);
+      fill[lean] = pct < 1 ? shade(accent, 0.25) : shade(accent, Math.min(0.85, 0.3 + pct / 10));
+      fill[other] = shade(accent, 0.2);
+      note[lean] = pct < 1 ? "balanced" : `${pct.toFixed(1)}% leaner`;
+      note[other] = pct < 1 ? "balanced" : "";
+    }
+    fill.Trunk = shade(accent, 0.3);
+  } else {
+    for (const s of SEGMENTS) {
+      const ch = leanDiffPct(z(s), segZ(ref, s, "100kHz")); // >0: impedance fell = more lean
+      if (ch == null) continue;
+      const a = Math.min(0.85, 0.2 + Math.abs(ch) / 6);
+      fill[s] = Math.abs(ch) < 0.5 ? "var(--body)" : shade(ch > 0 ? "#16a34a" : "#ea580c", a);
+      note[s] = `${signed(ch)}% lean`;
+    }
+  }
+  const fat = src.bodyFatPercent, smm = src.skeletalMuscleMass;
+  const label = (s, x, y, anchor) => `<text x="${x}" y="${y}" text-anchor="${anchor}" class="lbl">${SEG_NAME[s]}</text>
+      <text x="${x}" y="${y + 15}" text-anchor="${anchor}" class="sub">${z(s) != null ? z(s).toFixed(0) + " Ω" : "–"}</text>
+      ${note[s] ? `<text x="${x}" y="${y + 29}" text-anchor="${anchor}" class="sub">${note[s]}</text>` : ""}`;
+  const lead = (x1, y1, x2, y2) => `<path d="M${x1},${y1} L${x2},${y2}" stroke="var(--muted)" stroke-width="0.8" stroke-dasharray="2 2" fill="none"/>`;
+  // Front view: the person's right side is on the viewer's left.
+  return `<svg class="figure" viewBox="0 0 380 470" role="img" aria-label="Body map">
+    <defs><linearGradient id="gloss" x1="0" x2="1"><stop offset="0" stop-color="#fff" stop-opacity=".18"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".06"/></linearGradient></defs>
+    <g transform="translate(30,0)" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M112,104 Q90,170 80,254" stroke="var(--body-edge)" stroke-width="27" fill="none"/>
+      <path d="M208,104 Q230,170 240,254" stroke="var(--body-edge)" stroke-width="27" fill="none"/>
+      <path d="M138,272 L130,446" stroke="var(--body-edge)" stroke-width="37" fill="none"/>
+      <path d="M182,272 L190,446" stroke="var(--body-edge)" stroke-width="37" fill="none"/>
+      <path d="M112,104 Q90,170 80,254" stroke="${fill.RightArm}" stroke-width="24" fill="none"/>
+      <path d="M208,104 Q230,170 240,254" stroke="${fill.LeftArm}" stroke-width="24" fill="none"/>
+      <path d="M138,272 L130,446" stroke="${fill.RightLeg}" stroke-width="34" fill="none"/>
+      <path d="M182,272 L190,446" stroke="${fill.LeftLeg}" stroke-width="34" fill="none"/>
+      <circle cx="78" cy="266" r="10" fill="var(--body)" stroke="var(--body-edge)"/>
+      <circle cx="242" cy="266" r="10" fill="var(--body)" stroke="var(--body-edge)"/>
+      <path d="M116,94 Q160,82 204,94 L214,150 Q208,205 200,238 L204,272 Q160,288 116,272 L120,238 Q112,205 106,150 Z" fill="${fill.Trunk}" stroke="var(--body-edge)" stroke-width="1.5"/>
+      <rect x="150" y="70" width="20" height="18" rx="6" fill="var(--body)" stroke="var(--body-edge)"/>
+      <circle cx="160" cy="46" r="27" fill="var(--body)" stroke="var(--body-edge)" stroke-width="1.5"/>
+      <path d="M116,94 Q160,82 204,94 L214,150 Q208,205 200,238 L204,272 Q160,288 116,272 L120,238 Q112,205 106,150 Z" fill="url(#gloss)"/>
+    </g>
+    <g transform="translate(30,0)">
+    ${fat != null ? `<text x="160" y="168" text-anchor="middle" class="heroK">BODY FAT</text>
+      <text x="160" y="192" text-anchor="middle" class="hero">${fat.toFixed(1)}%</text>` : ""}
+    ${smm != null ? `<text x="160" y="214" text-anchor="middle" class="heroK">SKELETAL MUSCLE</text>
+      <text x="160" y="232" text-anchor="middle" class="lbl">${fmtW(smm)}</text>` : ""}
+    <text x="160" y="258" text-anchor="middle" class="sub">${z("Trunk") != null ? "trunk " + z("Trunk").toFixed(1) + " Ω" : ""}</text>
+    </g>
+    ${lead(110, 175, 70, 150)}${label("RightArm", 4, 120, "start")}
+    ${lead(270, 175, 310, 150)}${label("LeftArm", 376, 120, "end")}
+    ${lead(158, 380, 80, 380)}${label("RightLeg", 4, 360, "start")}
+    ${lead(222, 380, 300, 380)}${label("LeftLeg", 376, 360, "end")}
+  </svg>`;
+}
+
+function compBar(label, w, fatPct, smmKg) {
+  if (fatPct == null) return "";
+  const fat = w * fatPct / 100, smm = smmKg ?? 0, other = Math.max(0, w - fat - smm);
+  const pct = (v) => (v / w * 100).toFixed(1) + "%";
+  return `<div class="row"><b>${label}</b><div>
+    <div class="scale-bar" title="Fat ${fat.toFixed(1)} kg · skeletal muscle ${smm.toFixed(1)} kg · other lean ${other.toFixed(1)} kg">
+      <span style="width:${pct(fat)};background:var(--fat)"></span><span style="width:${pct(smm)};background:var(--muscle)"></span><span style="width:${pct(other)};background:var(--lean)"></span></div>
+    <div class="muted" style="margin-top:2px">${fmtW(fat)} fat · ${smmKg != null ? fmtW(smm) + " muscle · " : ""}${fmtW(other)} other lean</div></div></div>`;
+}
+
+function compositionPanel(r, me) {
+  const w = r.weight, sc = r.scale && r.scale.mine ? r.scale : null, mo = r.model?.composition_source === "impedance" ? r.model : null, alt = r.model_alt;
+  const otherScale = r.scale && !r.scale.mine ? r.scale : null;
+  const cols = [];
+  if (sc) cols.push({ name: "Scale (Renpho)", v: sc, primary: r.composition_source === "scale" });
+  if (mo) cols.push({ name: MODEL_NAMES[mo.reference] || "Model", v: mo, primary: r.composition_source === "impedance" });
+  if (alt) cols.push({ name: MODEL_NAMES[alt.reference] || "Model", v: alt, primary: false });
+  if (!cols.length && r.model) cols.push({ name: "Estimate (BMI)", v: r.model, primary: true });
+  const rows = [
+    ["Body fat", "bodyFatPercent", "%", 1], ["Fat mass", "_fatMass", "mass", 1], ["Skeletal muscle", "skeletalMuscleMass", "mass", 1],
+    ["Skeletal muscle %", "skeletalMusclePercent", "%", 1], ["Muscle (all lean soft tissue)", "muscleMass", "mass", 1],
+    ["Water", "waterPercent", "%", 1], ["Bone", "boneMass", "mass", 2], ["Visceral fat", "visceralFat", "", 0], ["BMR", "bmr", "kcal", 0],
+  ];
+  const val = (v, key) => key === "_fatMass" ? (v.bodyFatPercent != null ? w * v.bodyFatPercent / 100 : null) : v[key];
+  const table = `<div class="table-wrap"><table><thead><tr><th></th>${cols.map((c) => `<th>${esc(c.name)}${c.primary ? " ★" : ""}</th>`).join("")}</tr></thead><tbody>
+    ${rows.filter(([, k]) => cols.some((c) => val(c.v, k) != null)).map(([label, k, unit, dp]) => {
+      const m = { unit, dp };
+      return `<tr><td>${label}</td>${cols.map((c) => `<td class="${c.primary ? "pri" : ""}">${val(c.v, k) == null ? "–" : fmt(m, val(c.v, k)) + " " + (unit === "mass" ? state.unit : unit)}</td>`).join("")}</tr>`;
+    }).join("")}</tbody></table></div>`;
+  const bars = cols.filter((c) => c.v.bodyFatPercent != null).map((c) => compBar(c.name, w, c.v.bodyFatPercent, c.v.skeletalMuscleMass)).join("");
+  return `<div class="panel"><h2>Composition <span class="muted">${fmtW(w)} · ★ shown first</span></h2>
+      <div class="big">
+        <div><div class="k">Weight</div><div class="v">${fmt({ unit: "mass", dp: 1 }, w)}<span>${state.unit}</span></div></div>
+        ${r.bodyFatPercent != null ? `<div><div class="k">Body fat</div><div class="v">${r.bodyFatPercent.toFixed(1)}<span>%</span></div></div>` : ""}
+        ${r.skeletalMuscleMass != null ? `<div><div class="k">Skeletal muscle</div><div class="v">${fmt({ unit: "mass", dp: 1 }, r.skeletalMuscleMass)}<span>${state.unit}</span></div></div>` : ""}
+        ${r.bmi != null ? `<div><div class="k">BMI</div><div class="v">${r.bmi.toFixed(1)}<span>${bmiCategory(r.bmi, me.body_reference)}</span></div></div>` : ""}
+      </div>
+      ${bars ? `<div class="bars">${bars}</div><div class="keys"><span><i style="background:var(--fat)"></i>Fat</span><span><i style="background:var(--muscle)"></i>Skeletal muscle</span><span><i style="background:var(--lean)"></i>Other lean (organs, water, bone)</span></div>` : ""}
+    </div>
+    <div class="panel"><h2>Scale vs model <span class="muted">same weigh-in</span></h2>${table}
+      <p class="note">${sc ? "The scale's figures are what the Renpho app shows; water, bone and muscle mass are derived from its body fat. " : ""}${otherScale ? `The scale computed this weigh-in for ${esc(nameOf(otherScale.computed_for))}'s profile, so its figures aren't used for ${esc(me.name)}. ` : ""}${!sc && !otherScale && me.slug !== state.settings.scale_profile ? `The scale's own analysis appears here when ${esc(me.name)} is the <a href="#" data-tab="settings">scale profile</a>. ` : ""}The model uses published equations with ${esc(me.name)}'s sex and age; the scale's analysis doesn't use either. No method is exact: compare trends within one column.</p></div>`;
+}
+
+function segmentPanel(src, ref) {
   const cell = (s) => {
     const z20 = segZ(src, s, "20kHz"), z100 = segZ(src, s, "100kHz");
     const ch = ref ? leanDiffPct(z100, segZ(ref, s, "100kHz")) : null;
     const cls = ch == null || Math.abs(ch) < 0.5 ? "" : ch > 0 ? "down" : "up";
-    return `<div><b>${segLabel(s)}</b>${z20 ?? "–"} / ${z100 ?? "–"} Ω
+    const ratio = z20 && z100 ? (z100 / z20).toFixed(3) : null;
+    return `<div><b>${SEG_NAME[s]}</b>${z20 ?? "–"} / ${z100 ?? "–"} Ω
+      ${ratio ? `<span class="sub">100/20 ratio ${ratio}</span>` : ""}
       ${ch != null ? `<span class="d sub"><span class="${cls}">${signed(ch)}%</span> lean vs ${dateLabel(ref.ts)}</span>` : ""}</div>`;
   };
   const bal = (a, b, name) => {
@@ -419,24 +637,95 @@ function segmentPanel() {
     const side = Math.abs(d) < 1 ? "balanced" : d < 0 ? `right ${Math.abs(d).toFixed(1)}% leaner` : `left ${Math.abs(d).toFixed(1)}% leaner`;
     return `<div><b>${name} balance</b>${side}</div>`;
   };
-  const wb = src.impedance50kHz ? `<div><b>Whole body (50 kHz)</b>${src.impedance50kHz} Ω</div>
-    <div><b>100 / 20 kHz ratio</b>${src.impedanceRatio}<span class="d sub">lower = more cell mass</span></div>` : "";
-  return `<div class="panel"><h2>Segments <span class="muted">${dateLabel(src.ts, true)} · impedance at 20 / 100 kHz</span></h2>
-    <div class="segments">${SEGMENTS.map(cell).join("")}${bal("LeftArm", "RightArm", "Arm")}${bal("LeftLeg", "RightLeg", "Leg")}${wb}</div>
-    <p class="muted" style="margin:8px 0 0">Lean change and balance compare impedance at 100 kHz: lower impedance means more lean tissue and water in that segment. Hydration also moves it, so compare weigh-ins taken at the same time of day.</p></div>`;
+  const upper = segZ(src, "LeftArm", "100kHz") && segZ(src, "LeftLeg", "100kHz")
+    ? `<div><b>Arms vs legs</b>${((segZ(src, "LeftArm", "100kHz") + segZ(src, "RightArm", "100kHz")) / (segZ(src, "LeftLeg", "100kHz") + segZ(src, "RightLeg", "100kHz"))).toFixed(2)}<span class="sub">arm / leg impedance</span></div>` : "";
+  const m = src.model || {};
+  const wb = m.impedance50kHz ? `<div><b>Whole body (50 kHz)</b>${m.impedance50kHz} Ω<span class="sub">arm + trunk + leg</span></div>
+    <div><b>100 / 20 kHz ratio</b>${m.impedanceRatio}<span class="sub">lower = more cell mass</span></div>` : "";
+  return `<div class="panel"><h2>Segment impedance <span class="muted">${dateLabel(src.ts, true)} · 20 / 100 kHz</span></h2>
+    <div class="segments">${SEGMENTS.map(cell).join("")}${bal("LeftArm", "RightArm", "Arm")}${bal("LeftLeg", "RightLeg", "Leg")}${upper}${wb}</div>
+    <p class="note">Raw values exactly as the scale sent them. The 100/20 kHz ratio drops as cell mass grows relative to fluid outside cells; use it as a trend, not a diagnosis.</p></div>`;
 }
 
+// ---------- history ----------
+function historyTab(me) {
+  const rowsDesc = [...state.rows].reverse();
+  const anyScale = rowsDesc.some((r) => r.scale?.mine), anyModel = rowsDesc.some((r) => r.model?.composition_source === "impedance");
+  const body = rowsDesc.map((r) => {
+    const how = r.assign_method === "manual" ? "claimed" : "auto " + Math.round((r.confidence ?? 0) * 100) + "%";
+    return `<tr><td>${dateLabel(r.ts, true)}</td><td class="pri">${fmtW(r.weight)}</td>
+      ${anyScale ? `<td>${r.scale?.mine ? r.scale.bodyFatPercent.toFixed(1) : "–"}</td>` : ""}
+      ${anyModel ? `<td>${r.model?.composition_source === "impedance" ? r.model.bodyFatPercent.toFixed(1) : "–"}</td>` : ""}
+      ${!anyScale && !anyModel ? `<td>${r.bodyFatPercent != null ? r.bodyFatPercent.toFixed(1) : "–"}</td>` : ""}
+      <td>${r.skeletalMuscleMass != null ? fmtW(r.skeletalMuscleMass) : "–"}</td>
+      <td>${r.visceralFat ?? "–"}</td><td>${r.bmi != null ? r.bmi.toFixed(1) : "–"}</td>
+      <td>${r.impedanceTrunk100kHz ? "✓" : ""}</td>
+      <td><span class="badge">${how}</span></td><td>${assignSelect(r, true)}</td></tr>`;
+  }).join("");
+  return `${inboxPanel(15)}
+    <div class="panel"><h2>${esc(me.name)}'s weigh-ins <span class="muted">${state.rows.length} in range · <a href="/api/export.csv?days=all&profile=${encodeURIComponent(state.me)}">Download CSV</a></span></h2>
+      ${rowsDesc.length ? `<div class="table-wrap"><table>
+        <thead><tr><th>Date</th><th>Weight</th>${anyScale ? "<th>Fat % (scale)</th>" : ""}${anyModel ? "<th>Fat % (model)</th>" : ""}${!anyScale && !anyModel ? "<th>Fat %</th>" : ""}
+          <th>Skel. muscle</th><th>Visceral</th><th>BMI</th><th>Scan</th><th>How</th><th></th></tr></thead>
+        <tbody>${body}</tbody></table></div>` : `<p class="muted">No weigh-ins in this range.</p>`}</div>`;
+}
+
+// ---------- settings ----------
+function settingsTab() {
+  const s = state.settings, sync = s.sync || {}, sp = prof(s.scale_profile);
+  const people = state.profiles.map((p) => {
+    const age = ageOf(p.birth_date);
+    const bits = [p.height_cm && `${p.height_cm} cm`, age != null && `${age} y`, p.sex, p.athlete && "athlete",
+                  p.body_reference === "east_asian" && "East Asian equations", `shows ${p.primary_source === "model" ? "model" : "scale"} first`].filter(Boolean);
+    return `<div class="prow">${avatar(p, "lg")}<div class="info"><b>${esc(p.name)} ${p.slug === s.scale_profile ? '<span class="badge ok">scale profile</span>' : ""}</b>
+      <span class="muted">${esc(bits.join(" · "))} · ${p.count} weigh-ins</span></div><button data-edit="${esc(p.slug)}">Edit</button></div>`;
+  }).join("");
+  const ready = (p) => p.height_cm && p.birth_date && p.sex;
+  const opts = `<option value="">Not managed (use ble-scale-sync's config.yaml as is)</option>` + state.profiles.map((p) =>
+    `<option value="${esc(p.slug)}" ${p.slug === s.scale_profile ? "selected" : ""} ${ready(p) ? "" : "disabled"}>${esc(p.name)}${ready(p) ? "" : " (needs height, birth date and sex)"}</option>`).join("");
+  const cls = !s.scale_profile ? "" : sync.ok === false ? "bad" : sync.warning ? "warn" : "ok";
+  const status = s.scale_profile || sync.message ? `<div class="callout ${cls}">${esc(sync.message || "")}${sync.warning ? "<br>" + esc(sync.warning) : ""}
+      ${sync.checked ? `<div class="muted">Checked ${esc(relTime(sync.checked))}</div>` : ""}</div>` : "";
+  const sent = sp && sync.profile_byte ? `<dl class="kv">
+      <dt>Height</dt><dd>${sync.height_cm} cm</dd>
+      <dt>Sex and age</dt><dd>${esc(sync.sex)}, ${sync.age} → profile byte <code>0x${esc(sync.profile_byte.toUpperCase())}</code></dd>
+      <dt>Last weight</dt><dd>${esc(nameOf(sp.slug))}'s latest weigh-in (the scale uses it as a starting point)</dd>
+      <dt>Slot</dt><dd>guest slot 09, so your Renpho app user (slot 01) is never overwritten</dd></dl>` : "";
+  return `<div class="panel"><h2>People <button data-add>+ Add person</button></h2>
+      ${people ? `<div class="plist">${people}</div>` : `<p class="muted">No profiles yet.</p>`}</div>
+    <div class="panel"><h2>Scale profile <span class="muted">who the Renpho scale computes its own analysis for</span></h2>
+      <p class="note" style="margin-top:0">At the start of every weigh-in ble-scale-sync sends the scale one profile. The scale computes its body fat, skeletal muscle and visceral fat for that profile, before anyone knows who is standing on it. Pick the person who should get the scale's own analysis; everyone else gets Scale Hub's model.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+        <select id="scaleProfile" style="flex:1;min-width:220px">${opts}</select>
+        <button id="syncNow" ${s.scale_profile ? "" : "disabled"}>Sync now</button></div>
+      ${status}${sent}
+      <p class="note">Scale Hub writes this into <code>${esc(sync.config || "~/ble-scale-sync/config.yaml")}</code> (first user's name, height, birth date, sex, athlete flag and <code>ble.rmsc04_profile_byte</code>), and checks it again every 6 hours, so the byte follows birthdays. ble-scale-sync reloads it before its next scan. The user's slug is left alone, so a Garmin login stays connected.</p></div>
+    <div class="panel"><h2>How the numbers are made</h2>
+      <h3>Scale (Renpho)</h3><p class="note" style="margin-top:0">The R-MSC04's own result for the scale profile, the same numbers the Renpho app shows. It depends on weight, height and the ten impedances; tests with the Renpho app showed it does not change with sex or age.</p>
+      <h3>Model</h3><p class="note" style="margin-top:0">Scale Hub turns the scale's segment impedances into a whole-body impedance at 50 kHz, then uses published equations: fat-free mass from NHANES III (Chumlea 2002) or, with the East Asian reference, Chen 2016; skeletal muscle from Janssen 2000; BMR from Katch-McArdle. These use height, weight, age and sex. Expect about ±3–4 % body fat against a lab method.</p>
+      <h3>Estimate</h3><p class="note" style="margin-top:0">Weigh-ins without a body scan get a BMI-based estimate (Deurenberg), and only for people who never had a scan.</p></div>`;
+}
+async function saveSettings(body) {
+  const res = await api("/api/settings", { method: "POST", body: JSON.stringify(body) });
+  const data = await res.json();
+  if (!res.ok) alert("Could not save: " + (data.error || res.status));
+  load();
+}
+
+// ---------- chart ----------
 function drawChart(m) {
   const svg = $("#chart");
-  if (!svg) return;
+  if (!svg || !m) return;
   const pts = state.rows.filter((r) => r[m.key] != null).map((r) => ({ t: new Date(r.ts).getTime(), v: conv(m, r[m.key]), r }));
+  const alt = m.both ? state.rows.map((r) => ({ t: new Date(r.ts).getTime(), v: secondary(r, m.key) })).filter((p) => p.v != null).map((p) => ({ ...p, v: conv(m, p.v) })) : [];
   const W = svg.clientWidth || 800, H = svg.clientHeight || 280, P = { l: 44, r: 12, t: 12, b: 26 };
   svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
   if (!pts.length) { svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle">No ${m.label.toLowerCase()} readings in this range</text>`; return; }
 
-  let t0 = pts[0].t, t1 = pts[pts.length - 1].t;
+  const all = [...pts, ...alt];
+  let t0 = Math.min(...all.map((p) => p.t)), t1 = Math.max(...all.map((p) => p.t));
   if (t1 - t0 < 864e5) { t0 -= 432e5; t1 += 432e5; }
-  let v0 = Math.min(...pts.map((p) => p.v)), v1 = Math.max(...pts.map((p) => p.v));
+  let v0 = Math.min(...all.map((p) => p.v)), v1 = Math.max(...all.map((p) => p.v));
   const pad = Math.max((v1 - v0) * 0.15, m.unit === "%" ? 0.5 : 0.3);
   v0 -= pad; v1 += pad;
   const x = (t) => P.l + ((t - t0) / (t1 - t0)) * (W - P.l - P.r);
@@ -453,9 +742,11 @@ function drawChart(m) {
     const t = t0 + ((t1 - t0) * i) / ticks;
     g += `<text x="${x(t)}" y="${H - 6}" text-anchor="${i === 0 ? "start" : i === ticks ? "end" : "middle"}">${dateLabel(new Date(t).toISOString())}</text>`;
   }
+  const line = (arr) => arr.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`).join("");
+  if (alt.length > 1) g += `<path d="${line(alt)}" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="5 4"/>`;
+  g += alt.map((p) => `<circle cx="${x(p.t)}" cy="${y(p.v)}" r="2.5" fill="var(--muted)"/>`).join("");
   // 7-reading moving average smooths day-to-day water swings.
   const avg = pts.map((p, i) => { const s = pts.slice(Math.max(0, i - 6), i + 1); return { t: p.t, v: s.reduce((a, b) => a + b.v, 0) / s.length }; });
-  const line = (arr) => arr.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`).join("");
   const area = line(avg) + `L${x(avg[avg.length - 1].t)},${H - P.b}L${x(avg[0].t)},${H - P.b}Z`;
   g += `<path d="${area}" fill="var(--pc)" fill-opacity="0.12"/>`;
   if (pts.length > 1) g += `<path d="${line(avg)}" fill="none" stroke="var(--pc)" stroke-width="2.5" stroke-linejoin="round"/>`;
@@ -469,10 +760,10 @@ function drawChart(m) {
     const px = ((e.clientX - rect.left) / rect.width) * W;
     let best = 0;
     pts.forEach((p, i) => { if (Math.abs(x(p.t) - px) < Math.abs(x(pts[best].t) - px)) best = i; });
-    const p = pts[best];
+    const p = pts[best], sec = m.both ? secondary(p.r, m.key) : null;
     hover.setAttribute("x1", x(p.t)); hover.setAttribute("x2", x(p.t)); hover.setAttribute("visibility", "visible");
     tip.style.display = "block";
-    tip.textContent = `${dateLabel(p.r.ts, true)} · ${p.v.toFixed(m.dp)} ${unitLabel(m)}`;
+    tip.textContent = `${dateLabel(p.r.ts, true)} · ${p.v.toFixed(m.dp)} ${unitLabel(m)}${sec != null ? ` (${secondaryName(p.r)} ${conv(m, sec).toFixed(m.dp)})` : ""}`;
     tip.style.left = Math.min(e.clientX + 12, innerWidth - tip.offsetWidth - 8) + "px";
     tip.style.top = e.clientY - 34 + "px";
   };
@@ -490,9 +781,10 @@ function openProfile(slug) {
   const used = new Set(state.profiles.map((p) => p.color));
   pickedColor = editing?.color || PALETTE.find((c) => !used.has(c)) || PALETTE[0];
   if (editing) {
-    for (const k of ["name", "height_cm", "birth_date", "sex", "start_weight", "body_reference"]) pform.elements[k].value = editing[k] ?? "";
+    for (const k of ["name", "height_cm", "birth_date", "sex", "start_weight", "body_reference", "primary_source"]) pform.elements[k].value = editing[k] ?? "";
     pform.elements.athlete.checked = !!editing.athlete;
   }
+  if (!pform.elements.primary_source.value) pform.elements.primary_source.value = "scale";
   renderSwatches();
   dlg.showModal();
   if (!editing) pform.elements.name.focus();
@@ -507,7 +799,7 @@ pform.onsubmit = async (e) => {
   const f = pform.elements;
   const body = { name: f.name.value.trim(), color: pickedColor, height_cm: f.height_cm.value, birth_date: f.birth_date.value,
                  sex: f.sex.value, start_weight: f.start_weight.value, athlete: f.athlete.checked,
-                 body_reference: f.body_reference.value };
+                 body_reference: f.body_reference.value, primary_source: f.primary_source.value };
   const res = await api(editing ? `/api/profiles/${editing.slug}` : "/api/profiles", { method: "POST", body: JSON.stringify(body) });
   const data = await res.json();
   if (!res.ok) { $("#perr").textContent = data.error || "Could not save"; return; }
@@ -529,12 +821,17 @@ document.addEventListener("click", (e) => {
   const edit = t.closest("[data-edit]");
   if (edit) { e.preventDefault(); e.stopPropagation(); openProfile(edit.dataset.edit); return; }
   if (t.closest("[data-add]")) { openProfile(null); return; }
+  const tab = t.closest("[data-tab]");
+  if (tab) { e.preventDefault(); state.tab = tab.dataset.tab; localSet("tab", state.tab); render(); scrollTo({ top: 0 }); return; }
   const me = t.closest("[data-me]");
   if (me) { state.me = me.dataset.me; localSet("me", state.me); load(); return; }
   const cl = t.closest("[data-claim]");
   if (cl) { claim(cl.dataset.claim, state.me); return; }
   const card = t.closest("[data-metric]");
   if (card) { state.metric = card.dataset.metric; localSet("metric", state.metric); render(); return; }
+  const bm = t.closest("[data-bmode]");
+  if (bm) { state.bodyMode = bm.dataset.bmode; localSet("bodyMode", state.bodyMode); render(); return; }
+  if (t.closest("#syncNow")) { saveSettings({}); return; }
   const rb = t.closest("#range button");
   if (rb) {
     state.days = rb.dataset.d; localSet("days", state.days);
@@ -543,6 +840,7 @@ document.addEventListener("click", (e) => {
   }
 });
 document.addEventListener("change", (e) => {
+  if (e.target.id === "scaleProfile") { saveSettings({ scale_profile: e.target.value || null }); return; }
   const sel = e.target.closest("[data-assign]");
   if (!sel || !sel.value) return;
   const id = sel.dataset.assign, v = sel.value;
@@ -551,9 +849,10 @@ document.addEventListener("change", (e) => {
 });
 $("#unit").onchange = (e) => { state.unit = e.target.value; localSet("unit", state.unit); render(); };
 $("#unit").value = state.unit;
+if (!TABS.some(([id]) => id === state.tab)) state.tab = "overview";
 document.querySelectorAll("#range button").forEach((b) => b.classList.toggle("on", b.dataset.d === state.days));
 let resizeT; addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(render, 150); });
-setInterval(() => { if (!document.hidden && !dlg.open) load(); }, 30000);
+setInterval(() => { if (!document.hidden && !dlg.open && state.tab !== "settings") load(); }, 30000);
 load().catch((err) => { $("#status").textContent = "cannot reach server"; console.error(err); });
 </script>
 </body>

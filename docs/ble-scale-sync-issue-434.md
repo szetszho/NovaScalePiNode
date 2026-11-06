@@ -185,6 +185,11 @@ connections (0x11 to 0x15 in this session).
 - Document the workaround on the Renpho page. The troubleshooting entry "The R-MSC04 drops the
   connection a few seconds in" fits exactly.
 - Log the disconnect reason for these sessions. Here only `btmon` showed the 0x13.
+- Derive `rmsc04_profile_byte` from `gender` and `birth_date` (0x80 for male + age), keeping
+  the option as an override.
+- Send the zone west of UTC as `0x8000 | minutes` in b3.
+- Export where the composition came from (`compositionSource`), plus the record's BMI and slot
+  byte, so downstream tools don't have to infer it from `skeletalMusclePercent`.
 - Possibly handle it in code: for the R-MSC04, load wider connection parameters for the scale
   (for example max ≥ 45 ms) before connecting, or clear the kernel's stored parameters for it.
   I haven't tested either; `-P gap` is what I've verified.
