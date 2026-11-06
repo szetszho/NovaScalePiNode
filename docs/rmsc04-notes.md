@@ -153,33 +153,42 @@ choose which is shown first.
 - Duplicates: the same weight within 2 minutes is one weigh-in. A repeat with more fields (for
   example impedances after a weight-only reading) replaces it.
 
-## 6b. Renpho app report: segments and standards (reconstructed from one report)
+## 6b. Renpho app report: segments and standards (reconstructed from two reports)
 
-The app's per-limb figures are **not sent by the scale**; the app computes them. One Renpho
-"Body Composition Analysis Report" (male, 30, 180 cm, 67.85 kg, 11.3 % fat, 20 kHz
-impedances R arm 343.1, L arm 349.1, trunk 20.8, R leg 268.9, L leg 280.1 Ω) gives:
+The app's per-limb figures are **not sent by the scale**; the app computes them. Two "Body
+Composition Analysis Reports" (male, 30, 180 cm, 11.3 % fat both times):
 
-- **Standards**: standard weight = BMI 22 (71.3 kg), range ±15 % (60.6–82.0). Fat mass
-  12–24 % of standard weight for men (8.6–17.1). Muscle, skeletal muscle, water, protein and
-  bone standards = 0.93 / 0.58 / 0.73 / 0.20 / 0.067 × the fat-free mass at standard weight,
-  each ±10 %. Female fat range 20–32 % is an **assumption** (no women's report yet).
-- **Fat-free split**: water = 73.3 % of FFM, bone = 6.65 %, muscle = FFM − bone, protein =
-  FFM − water − bone. ble-scale-sync derives these differently, so Scale Hub re-derives the
-  scale's figures this way (`renpho_split`).
-- **Segment muscle**: kg ≈ k · H²/Z20 with k = 0.0350 (arms), 0.01682 (trunk), 0.0836 (legs);
-  the five segments hold 93.6 % of whole-body muscle. Scale Hub splits the shown muscle mass by
-  these indices, so left/right follow the measured impedance. Renpho itself gave both legs the
-  identical 9.87 kg although their impedances differ by 4 %, so the app mostly ignores
-  segment impedance.
-- **Segment standards**: arm 5.85 %, trunk 46.7 %, leg 16.3 % of standard muscle; bands
-  Low < 90 %, High > 110 % (the report's 111.2 % leg is "High", 102.5 % "Standard").
-- **Segment fat**: impedance can't locate fat. Renpho's split of total fat: arm 3.46 %,
-  trunk 51.9 %, leg 18.5 % each; standards arm 5.37 %, trunk 35.5 %, leg 13.9 % of standard fat.
-  Low < 80 % (79.3 % was "Low", 87.3 % "Standard"); High > 160 % is assumed (InBody convention).
+| | Report 1 (Oct 26) | Report 2 (Nov 5, same weigh-in as iOS capture 1) |
+|---|---|---|
+| Weight / FFM | 67.85 / 60.18 kg | 70.25 / 62.31 kg |
+| 20 kHz R arm, L arm, trunk, R leg, L leg | 343.1, 349.1, 20.8, 268.9, 280.1 Ω | 319.2, 334.3, 16.8, 258.4, 266.7 Ω |
+| Muscle R arm, L arm, trunk, R leg, L leg | 3.29, 3.27, 26.20, 9.87, 9.87 kg | 3.49, 3.44, 27.14, 10.25, 10.25 kg |
+| Segment standard arm / trunk / leg | 3.19 / 25.45 / 8.88 kg | 3.24 / 25.85 / 9.02 kg |
+| Fat R arm, L arm, trunk, R leg, L leg | 0.26, 0.27, 3.98, 1.42, 1.42 kg | 0.24, 0.28, 4.33, 1.47, 1.47 kg |
+| BMR / SMI / obesity degree | 1669 / 8.1 / 95 % | 1714 / 8.5 / 98 % |
 
-With these constants Scale Hub reproduces that report to within about 0.1 kg per segment.
-Needed to validate: more reports, ideally including the full Bioelectrical Impedance table
-(20 and 100 kHz rows), on days with different body fat, and one from a woman.
+What fits both (implemented in `server.py`: `renpho_split`, `standards`, `segmental`):
+
+- **Fat-free split**: water = 73.3 % of FFM, bone ≈ 6.7 %, muscle = FFM − bone, protein =
+  FFM − water − bone. **BMR = Katch-McArdle, 370 + 21.6 × FFM** (exact for both).
+- **Standards**: standard weight = BMI 22 (71.3 kg), range ±15 %. Fat mass 12–24 % of
+  standard weight for men. Muscle, skeletal muscle, water, protein and bone standards =
+  0.93 / 0.58 / 0.73 / 0.20 / 0.067 × the fat-free mass at standard weight, each ±10 %. Female
+  fat range 20–32 % is an **assumption**.
+- **Segment muscle**: the five segments hold 93.75 % of muscle, split by **fixed shares**: arms
+  12.6 %, trunk 49.8 %, legs 37.6 % (the trunk's impedance fell 19 % between the reports and its
+  share stayed put). Renpho barely uses segment impedance: identical legs both times, arms
+  differ by about 1 %. Scale Hub splits each left/right pair by 1/Z instead, so real asymmetry shows.
+- **Segment standards**: 0.7123 × (weight + standard weight) / 2, split arm 6.43 %, trunk
+  51.32 %, leg 17.91 % (each). Bands Low < 90 %, High > 110 % (111 % and 114 % legs were "High").
+- **Segment fat**: arms 6.7 %, trunk 53.2 % (51.9 and 54.6 % in the reports: the one part that
+  varies), legs 37.0 % of fat mass; standards are standard fat × 5.37 / 35.5 / 13.9 %; Low < 80 %
+  (79.3 % Low, 82.1 % Standard); High > 160 % assumed.
+- **SMI** = (arm + leg muscle) / height²; **obesity degree** = weight / standard weight.
+
+Scale Hub reproduces both reports to within about 0.2 kg per segment, with exact pair totals and
+trunk muscle. Still open: the body score (76, 79), subcutaneous fat (8.1 % both), metabolic age,
+WHR, and a woman's report.
 
 ## 7. How to test and debug
 

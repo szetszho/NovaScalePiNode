@@ -522,8 +522,8 @@ function bodyTab(me) {
   let mode = modes.some(([m]) => m === state.bodyMode) ? state.bodyMode : "muscle";
   if ((mode === "muscle" || mode === "fat") && !scan.segmental) mode = "balance";
   const notes = {
-    muscle: "Muscle per segment and % of the standard for your height and sex (Low under 90 %, High over 110 %). The total is split by each segment's measured impedance, so left and right can differ.",
-    fat: "Fat per segment and % of standard (Low under 80 %). Impedance can't locate fat: the total is split the way the Renpho app splits it, so left and right are always equal.",
+    muscle: "Muscle per segment and % of standard, as in the Renpho report (Low under 90 %, High over 110 %). Arms, trunk and legs get the app's fixed shares of your muscle; each left/right pair is split by its measured impedance, so a real difference between sides shows.",
+    fat: "Fat per segment and % of standard (Low under 80 %). Impedance can't locate fat: arms, trunk and legs get the app's fixed shares, and the side with more lean tissue gets a little less.",
     balance: "Each limb against the other side: the leaner side is shaded, more strongly the bigger the difference (impedance at 100 kHz).",
     change: ref ? `Green: more lean tissue than on ${dateLabel(ref.ts)}. Orange: less (impedance at 100 kHz).` : "",
   };
@@ -638,6 +638,10 @@ function standardsPanel(r) {
       <div class="rg-v">${fmtW(s.value)} <span class="ev-${s.eval}">${EVAL[s.eval]}</span></div></div>`;
   };
   return `<div class="panel"><h2>Against standard <span class="muted">for ${esc(prof(state.me)?.height_cm ?? "")} cm, ${esc(prof(state.me)?.sex ?? "")} · ${r.composition_source === "scale" ? "scale" : "model"} figures</span></h2>
+    ${r.segmental ? `<div class="big" style="margin-bottom:10px">
+      <div><div class="k">Obesity degree</div><div class="v">${r.segmental.obesityDegree}<span>% of standard weight</span></div></div>
+      <div><div class="k">SMI</div><div class="v">${r.segmental.smi}<span>kg/m² arm + leg muscle</span></div></div>
+      ${r.bmr ? `<div><div class="k">BMR</div><div class="v">${r.bmr}<span>kcal</span></div></div>` : ""}</div>` : ""}
     <div class="rgs">${r.standards.map(row).join("")}</div>
     <p class="note">Standard ranges as in the Renpho report: weight around BMI 22 (±15 %), body fat mass 12–24 % of that weight for men${prof(state.me)?.sex === "female" ? " (20–32 % for women: an assumption, no women's report to check against yet)" : ""}, the rest ±10 % of their value at standard weight. The green band is Standard.</p></div>`;
 }
