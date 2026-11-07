@@ -13,34 +13,50 @@ Phone-free, always-on logging for the **Renpho MorphoScan Nova (R-MSC04)** on a 
   status acks), the weight and analysis frames, and the Garmin upload. It runs as the
   `ble-scale` service.
 - **Your own server and web page:** this folder. `server.py` stores every weigh-in in
-  `data/scale.db` and serves the dashboard on port 8080. It uses only the Python standard
+  `data/scale.db` and serves the web app on port 8080. It uses only the Python standard
   library and loads nothing from the internet, so it works offline.
+
+What it does:
+
+- Full body scans from the Nova: weight, the scale's own body fat, skeletal muscle and visceral
+  fat (the same numbers as the Renpho app), and the ten segment impedances.
+- Two sources side by side for every weigh-in: the scale's analysis and a model built on
+  published equations ([why they differ](docs/rmsc04-notes.md#5-why-the-scale-and-the-model-disagree-so-much)).
+- Renpho-style per-limb muscle and fat with Low / Standard / High, standard ranges, BMR, SMI and
+  obesity degree, reconstructed from Renpho's own reports.
+- A household without logins: weigh-ins are matched to people by weight, anyone can claim one.
+- Guest weigh-ins with a printable report, and (experimental) the scale's own analysis for every
+  household member.
+- Everything learned about the scale, its Bluetooth protocol and the fixes:
+  [docs/rmsc04-notes.md](docs/rmsc04-notes.md).
 
 ## What you need
 
 - Raspberry Pi 3/4/5 or Zero 2 W with built-in Bluetooth, running Raspberry Pi OS Bookworm or
-  newer (64-bit recommended), placed within a few metres of the scale.
+  newer (64-bit recommended), placed within a few metres of the scale. Tested on a Pi 4 with
+  Debian 13 (trixie), kernel 6.18 and BlueZ 5.82.
 - Optional: a Garmin Connect account.
 
 ## Install
 
-Copy this folder to the Pi (for example to `~/scale-hub`), then run:
+Clone this repository to the Pi (for example to `~/scale-hub`), then run:
 
 ```bash
 cd ~/scale-hub && chmod +x install.sh && ./install.sh
 ```
 
-Then reboot once (`sudo reboot`) so the Bluetooth fix below takes effect, and follow the
-steps it prints:
+Then reboot once (`sudo reboot`) so the Bluetooth fix (see [Maintenance](#maintenance)) takes
+effect, and:
 
-1. `nano ~/ble-scale-sync/config.yaml` and set your name, height, birth date, gender and
-   weight range.
-2. `cd ~/ble-scale-sync && ble-scale-sync validate`
+1. Open `http://<pi-ip>:8080` on any device on your network and add a profile for each person,
+   with height, birth date and sex (see [Household](#household-multi-user-no-login)).
+2. In **Settings → Scale profile**, pick yourself. Scale Hub writes your height, birth date,
+   sex and the scale's profile byte into `~/ble-scale-sync/config.yaml`. Widen
+   `weight_range` there if anyone in the household falls outside it.
 3. `sudo systemctl restart ble-scale`
-4. Step on the scale and stay on until the display shows the results (about 15 s after the
-   weight settles). `journalctl -u ble-scale -f` shows a `Measurement:` line.
-5. Open `http://<pi-ip>:8080` on any device on your network and add a profile for each person
-   (see [Household](#household-multi-user-no-login)).
+4. Step on the scale barefoot, hold the handle and stay on until the display shows the full
+   result (about 15 s after the weight settles). `journalctl -u ble-scale -f` shows a
+   `Measurement:` line, and the web app shows the weigh-in.
 
 **The scale talks to only one device at a time.** If the Renpho app is open on your phone it can
 take the connection. Close it, or turn off Bluetooth on the phone.
@@ -134,6 +150,18 @@ figures and impedances come through for everyone, and Scale Hub works out who it
 several users there (for example Garmin per person), weigh-ins matched to the others still get
 impedances and the model, but not the scale's own figures.
 
+### Renpho figures for everyone (experimental)
+
+Turn on **Settings → Scale profile → Renpho figures for everyone** to get the scale's own
+analysis for every household member, not only the scale profile. Scale Hub writes
+`~/ble-scale-sync/household.json` (each person's height, profile byte and usual weight), and the
+ble-scale-sync household patch (`ble-scale-sync/patches/`, applied by `install.sh`) sends the
+profile of whoever it matches by weight once the weight settles, about 6 seconds before the scale
+starts its body scan. Each result is checked: the scale's BMI has to give back that person's
+height within 1.5 cm, otherwise the result isn't credited to them and they get the model. The
+Body tab says which happened. If two people weigh within about a kilo of each other, the patch
+doesn't guess and the scale keeps the scale profile's figures.
+
 ### Guest weigh-in
 
 For a visitor: **Guest weigh-in** (person menu or Settings → Guests), enter height, age and sex,
@@ -152,9 +180,10 @@ applies from the listener's next scan cycle, which can be too late).
 
 ## Household (multi-user, no login)
 
-Everyone shares one dashboard. Tap your name at the top to see your own numbers; the page
-remembers the choice on that device. **+ Add person** creates a profile (name, colour, and
-optionally height, birth date, sex and usual weight).
+Everyone shares one web app. Tap the name at the top right to switch person, edit a profile or
+add one; the page remembers the choice on that device. A profile has a name, colour, and
+optionally height, birth date, sex, usual weight, which equations the model uses, and whether
+the scale's analysis or the model is shown first.
 
 **Automatic matching.** Each weigh-in goes to the person whose recent readings it is closest to
 (the median of their nearest readings in time; the allowed gap widens the longer they haven't
@@ -162,7 +191,8 @@ weighed in). For people with no history yet, their *usual weight* is used. A wei
 **unclaimed** when nobody is close enough (a visitor) or when two people are too close to call.
 The badge shows how sure the match was, for example `auto 96%`.
 
-**Claiming.** The panel at the top lists unclaimed weigh-ins and the latest few from everyone.
+**Claiming.** Unclaimed weigh-ins show as a banner on Overview and under **History → Needs a
+name**; Overview also lists the latest few from everyone.
 - **That's me** gives the reading to whoever is selected at the top. **Someone else…** gives it
   to another person, or marks it **Guest / not us**.
 - Claiming a reading that was only matched automatically happens straight away. Taking one that
@@ -171,22 +201,31 @@ The badge shows how sure the match was, for example `auto 96%`.
 - A manual claim never gets changed automatically. Each claim also improves future matching: one
   claim can settle a whole batch of that person's unclaimed readings.
 
-**Body composition per person.** Every weigh-in is calculated for the person it belongs to,
-from the impedance plus their height, age and sex (see [Body composition](#body-composition)).
-Moving a reading to someone else recalculates it for them.
+**Body composition per person.** The model is calculated for the person each weigh-in belongs
+to, from the impedance plus their height, age and sex, so moving a reading to someone else
+recalculates it for them. The scale's own analysis belongs to whoever the scale computed it for
+(the scale profile, or with household matching the person it matched), checked against that
+person's height.
 
 **Garmin with several people.** Garmin uploads happen in ble-scale-sync at weigh-in time, using
 its own matching by `weight_range`. A claim on the dashboard does not move a Garmin upload. For
 per-person Garmin, list each person in `config.yaml` with their own `weight_range` and Garmin
 exporter ([multi-user guide](https://blescalesync.dev/multi-user)).
 
-## Dashboard
+## Web app
 
-- One card per metric: latest value and change over 7 and 30 days (green means a change in the
-  healthy direction). Click a card to chart that metric.
-- The chart shows each reading as a dot (dashed for automatic matches, solid for claimed) and a
-  7-reading moving average as the line.
-- Per-person history table with a **Move…** menu on every row, kg/lb switch, CSV download.
+Four tabs (a bottom tab bar on phones), light and dark mode, kg or lb:
+
+- **Overview:** the selected figure large with its 7, 30 and 90-day change and a chart (7-reading
+  average; the other source dashed), every body composition figure in one list (tap one to chart
+  it), and the latest weigh-ins from everyone.
+- **Body:** the body map (muscle or fat per limb with % of standard, left/right balance, or lean
+  change over about 30 days), each segment's figures, the standard ranges with obesity degree,
+  SMI and BMR, scale vs model, and the raw impedances.
+- **History:** weigh-ins that need a name, and each person's weigh-ins for the chosen range, with
+  **Move…**, bulk delete and CSV export.
+- **Settings:** people, the scale profile and household matching, guest reports, and how the
+  numbers are made.
 
 ### API
 
@@ -202,7 +241,14 @@ exporter ([multi-user guide](https://blescalesync.dev/multi-user)).
 | POST | `/api/measurements/<id>/release` | Back to automatic matching |
 | GET | `/api/export.csv?days=all&profile=dad` | CSV download |
 | DELETE | `/api/measurements/<id>` | Delete a reading |
-| POST | `/api/measurements/delete` | `{"ids": [1, 2, 3]}`: delete several readings (History tab: tick rows or "Date" for all in range, then **Delete selected**) |
+| POST | `/api/measurements/delete` | `{"ids": [1, 2, 3]}`: delete several readings (History tab: tick rows or "Date" for all in range, then **Delete**) |
+| GET / POST | `/api/settings` | `{"scale_profile": "dad"}` (`null` = not managed), `{"household": true}`; returns the sync and household status |
+| GET / POST | `/api/guest` | Guest session status / start one with `{"name", "height_cm", "age", "sex"}` |
+| POST | `/api/guest/cancel`, `/api/guest/close` | Cancel a waiting guest session / finish one (back to normal) |
+
+Each measurement carries the figures shown first at the top level, plus `scale` (the scale's own
+analysis, `computed_for`, `verified`, `mine`), `model` and `model_alt` (the two equation sets),
+`standards` and `segmental` (Renpho-style ranges and per-limb figures).
 
 There's no login: anyone on your network can claim or edit. Only `/api/ingest` needs the key, so
 nothing else can inject readings. A repeat of the same reading (same weight within 2 minutes) is
@@ -215,7 +261,7 @@ replaces the stored one.
 ```bash
 systemctl status scale-hub ble-scale        # are both running?
 journalctl -u ble-scale -f                  # live Bluetooth log
-./install.sh && sudo systemctl restart ble-scale   # update (pulls and rebuilds ble-scale-sync)
+git pull && ./install.sh && sudo systemctl restart scale-hub ble-scale   # update (also rebuilds ble-scale-sync with ble-scale-sync/patches/)
 cp ~/scale-hub/data/scale.db ~/scale-backup-$(date +%F).db                       # backup
 python3 ~/scale-hub/server.py --import-jsonl ~/ble-scale-sync/measurements.jsonl # rebuild DB from backup
 ```

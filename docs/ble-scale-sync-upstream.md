@@ -25,8 +25,10 @@ or the MGMT `Device Disconnected` reason).
 
 ## 3. Derive `rmsc04_profile_byte` instead of sniffing it (verified on one unit)
 
-Byte = `(gender === 'male' ? 0x80 : 0) | age` (age in whole years on the weigh-in date). Seen:
-male 30 = 0x9E, female 30 = 0x1E, female 32 = 0x20; the guest byte 0xA9 fits as male 41.
+Byte = `(gender === 'male' ? 0x80 : 0) | age` (age in whole years on the weigh-in date). Seen by
+changing one setting at a time in the Renpho app: switching only the sex flips bit 7 (set for
+male), and test profiles female 30 = 0x1E and female 32 = 0x20 show the age in the low 7 bits;
+the guest byte 0xA9 fits as male 41.
 Athlete mode and activity level are not sent. In `src/scales/renpho-msc04.ts`:
 
 - `writeGuestProfile`: when `ble.rmsc04_profile_byte` is unset, compute the byte from the
@@ -45,7 +47,7 @@ at UTC−6 sends `0x8168`: bit 15 set for west, then the minutes (360). Proposed
 `zone = east >= 0 ? east : 0x8000 | -east`, and widen `zoneMinutes()` accordingly; update the
 `MAX_ZONE_MINUTES` comment and the docs line "Time zones west of UTC are sent ... as UTC".
 
-## 5. Say where the composition came from (small, useful downstream)
+## 5. Say where the composition came from (prototype: the `rmsc04` payload field in `ble-scale-sync/patches/rmsc04-household.patch`)
 
 Downstream (Scale Hub here) has to infer "the scale's own figures were used" from the presence
 of `skeletalMusclePercent`. Proposed optional fields on `BodyComposition` for this scale:
@@ -62,7 +64,7 @@ Worth stating in `docs/guide/scales/renpho.md`, because it means the D079 gate's
 birth-date checks protect against less than they seem to, and the height check
 (`fitsSentHeight`) is the one that matters.
 
-## 7. Multi-user: send the matched user's profile after 0x24 (untested idea)
+## 7. Multi-user: send the matched user's profile after 0x24 (prototype in `ble-scale-sync/patches/rmsc04-household.patch`, not yet confirmed)
 
 The record arrives about 16 s after 0x24, after status 0x09 and 0x11. By 0x24 ble-scale-sync
 knows the weight and could match the user, then write b2 again with that user's height and
@@ -70,7 +72,15 @@ byte (the app also writes b2 after 0x24 in some sessions). If the scale uses the
 the record, every household member would get the scale's own figures. Test: two users of
 different heights in config, check the record's BMI against each height.
 
-## 8. Stored weigh-ins (0x26) and battery (untested)
+## 8. Document that the app's per-limb figures are not in the record (verified)
+
+The 0x25 record has the ten impedances, body fat, BMI, skeletal muscle % and visceral fat only.
+The Renpho app's segment muscle and fat, protein, bone, water, BMR, SMI and standards are
+computed in the app; two app reports show it splits segment muscle by fixed shares and barely
+uses segment impedance (details: `docs/rmsc04-notes.md` section 6b). Worth a line in
+`docs/guide/scales/renpho.md` so users don't expect those from the scale.
+
+## 9. Stored weigh-ins (0x26) and battery (untested)
 
 - 0x26 records are weigh-ins taken while nobody was connected (46 bytes, seconds-old at
   [7..10]). They are logged and ignored today; they could be exported as history. The app
