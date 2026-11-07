@@ -12,7 +12,9 @@ R-MSC04 ──BLE──▶ ble-scale-sync (Node, ~/ble-scale-sync/src, built fro
                    │ file exporter ./measurements.jsonl (backup, re-import with --import-jsonl)
                    ▼
                  Scale Hub (server.py, stdlib only, SQLite in data/scale.db, static/index.html)
-                   │ writes the "scale profile" back into ~/ble-scale-sync/config.yaml
+                   │ writes the "scale profile" into ~/ble-scale-sync/config.yaml
+                   │ writes ~/ble-scale-sync/household.json (household matching, 6d)
+                   │ restarts ble-scale-sync for guest weigh-ins (6c)
                    ▼
                  ble-scale-sync reloads config.yaml before its next scan
 ```
@@ -20,7 +22,9 @@ R-MSC04 ──BLE──▶ ble-scale-sync (Node, ~/ble-scale-sync/src, built fro
 - `install.sh`: apt packages, Node 22, clones and builds ble-scale-sync (it is **not on npm**),
   Python venv for the Garmin uploader, `.env` with the ingest token, config from
   `ble-scale-sync/config.yaml.template`, systemd units, and the bluetoothd `-P gap` override.
-  Safe to re-run; it is also the update path.
+  It applies `ble-scale-sync/patches/*.patch` before building ble-scale-sync, skips a patch that
+  no longer applies, and rebuilds without the patches if the patched build fails. Safe to
+  re-run; it is also the update path.
 - systemd: `scale-hub.service` (env `SCALE_HUB_PORT`, `SCALE_HUB_BSS_CONFIG`) and
   `ble-scale.service` (`CONTINUOUS_MODE=true`, venv first in `PATH`).
 - Tested setup: Raspberry Pi 4 Model B Rev 1.5, Debian 13 (trixie), kernel 6.18.50+rpt-rpi-v8,
@@ -134,8 +138,14 @@ choose which is shown first.
 - `/api/measurements` returns per row: top-level primary values (by the profile's
   `primary_source`, `scale` or `model`), `scale` (the scale's figures, `computed_for`, `mine`),
   `model` (published equations), `model_alt` (the other equation set).
-- The scale's figures count as the scale's only when ble-scale-sync sent
-  `skeletalMusclePercent` (it does so only when it used the record's composition).
+- **Whose the scale's figures are.** With the household patch installed, every payload carries
+  the raw 0x25 record (`rmsc04`, stored as `rec_*` columns). The record is credited to the
+  person it was sent to (`sentTo`), else the scale profile at the time (`scale_for`), and only
+  if `100·sqrt(weight / record BMI)` is within 1.5 cm of that person's height (`verified`).
+  Without the patch (older readings) the scale's figures are recognised by ble-scale-sync
+  sending `skeletalMusclePercent`, which it does only when it used the record.
+- The scale's water, bone, protein, muscle and BMR are re-derived from its body fat the way
+  the Renpho app does (`renpho_split`, section 6b); ble-scale-sync's own derivation differs.
 - **Scale profile** (Settings tab, `settings.scale_profile`): Scale Hub writes that person's
   name, height (inches if `scale.height_unit: in`), birth date, sex, athlete flag and last
   weight into the **first user** of ble-scale-sync's `config.yaml`, plus
@@ -144,12 +154,13 @@ choose which is shown first.
   start-up, on profile save and every 6 hours (birthdays). ble-scale-sync rewrites
   `config.yaml` itself (`last_known_weight`) with a comment-preserving YAML library.
 - Multi-user: keep **one user** in ble-scale-sync's config. Every weigh-in is then matched to
-  it, the scale's figures are exported for every weigh-in (computed for the scale profile's
-  height), the impedances too, and Scale Hub assigns the person by weight. The scale's
-  figures are shown only for the scale profile; everyone else gets the model. With several
-  users in config (for example Garmin per person), the scale's figures only come through for
-  weigh-ins ble-scale-sync matches to the first user, but impedances come for all, so the
-  model still works.
+  it, the scale's record and the impedances come through for every weigh-in, and Scale Hub
+  assigns the person by weight. Without household matching the scale computes for the scale
+  profile only, so everyone else gets the model; household matching (6d) aims to give everyone
+  the scale's own figures. With several users in config (for example Garmin per person),
+  ble-scale-sync's own export of the scale's figures is limited to its first user, but the
+  `rmsc04` record and the impedances come for all.
+- Guests (`profiles.is_guest`) are excluded from matching, pickers and history (6c).
 - Duplicates: the same weight within 2 minutes is one weigh-in. A repeat with more fields (for
   example impedances after a weight-only reading) replaces it.
 
@@ -243,7 +254,13 @@ can be turned off.
   Tools for Xcode), File → New iOS Trace, export as text **with packet bytes**, then run
   `tools/decode_packetlogger.py`.
 - Server: `python3 -m py_compile server.py`; run locally with
-  `SCALE_HUB_BSS_CONFIG=/tmp/x.yaml python3 server.py --db /tmp/x.db --port 8765`.
+  `SCALE_HUB_RESTART_BSS=0 SCALE_HUB_BSS_CONFIG=/tmp/x.yaml python3 server.py --db /tmp/x.db --port 8765`
+  (`SCALE_HUB_RESTART_BSS=0` so a guest test doesn't signal real processes). Fake weigh-ins:
+  POST a ble-scale-sync-shaped JSON to `/api/ingest`, with an `rmsc04` object to test the
+  record path.
+- Household patch: can't be compiled in the cloud container (running ble-scale-sync's
+  toolchain there is not allowed); `git apply --check` against a fresh clone, then the Pi's
+  `install.sh` builds it. Log lines to look for: `household: sending <slug>'s profile`.
 - UI: Playwright is available in the cloud dev container; check 390 px width for horizontal
   overflow on every tab.
 

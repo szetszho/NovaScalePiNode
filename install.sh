@@ -74,7 +74,13 @@ for patch in "$HUB_DIR"/ble-scale-sync/patches/*.patch; do
     echo "warning: $(basename "$patch") does not apply to this ble-scale-sync version; skipped"
   fi
 done
-(cd "$SRC_DIR" && npm ci --no-fund --no-audit && npm run build)
+(cd "$SRC_DIR" && npm ci --no-fund --no-audit)
+if ! (cd "$SRC_DIR" && npm run build); then
+  # A local patch must never cost the working listener: rebuild without the patches.
+  echo "warning: ble-scale-sync failed to build with the local patches; building it without them"
+  git -C "$SRC_DIR" checkout -q -- .
+  (cd "$SRC_DIR" && npm run build)
+fi
 sudo npm install -g "$SRC_DIR" --no-fund --no-audit
 BSS_BIN="$(command -v ble-scale-sync)"
 if [[ ! -d "$BSS_DIR/venv" ]]; then

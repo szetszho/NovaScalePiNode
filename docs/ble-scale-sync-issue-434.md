@@ -142,7 +142,8 @@ connections (0x11 to 0x15 in this session).
 | b6 | `<seq> 01` | only after the scale replays a stored 0x26 record (first capture); absent when nothing is stored |
 
 - **b2 profile byte = (0x80 if male) | age in years.** Changing one setting at a time in the
-  Renpho app: male 30 → `0x9E`, female 30 → `0x1E`, female 32 → `0x20`. Athlete mode and
+  Renpho app: switching only the sex flips bit 7 (set for male), and test profiles female 30 →
+  `0x1E` and female 32 → `0x20` show the age in the low 7 bits. Athlete mode and
   activity level are not sent to the scale at all (no byte in b2, b7 or b8 changed with them).
   The guest byte `0xA9` fits the rule as male 41. So `rmsc04_profile_byte` could be derived from
   `gender` and `birth_date` instead of sniffed.
