@@ -150,7 +150,7 @@ figures and impedances come through for everyone, and Scale Hub works out who it
 several users there (for example Garmin per person), weigh-ins matched to the others still get
 impedances and the model, but not the scale's own figures.
 
-### Renpho figures for everyone (experimental)
+### Renpho figures for everyone
 
 Turn on **Settings → Scale profile → Renpho figures for everyone** to get the scale's own
 analysis for every household member, not only the scale profile. Scale Hub writes
@@ -161,6 +161,13 @@ starts its body scan. Each result is checked: the scale's BMI has to give back t
 height within 1.5 cm, otherwise the result isn't credited to them and they get the model. The
 Body tab says which happened. If two people weigh within about a kilo of each other, the patch
 doesn't guess and the scale keeps the scale profile's figures.
+
+Confirmed on the scale: a 163 cm household member got a result computed for 163 cm while the
+Pi had connected with a 180 cm profile. One habit makes it work every time: **step on after
+the scale has woken up and the Pi has connected** (a second or two). If someone is already
+standing on it when the Pi connects, the weight never "settles" while connected, so the patch
+can't tell who it is and that weigh-in falls back to the model (unless it's the scale profile
+person).
 
 ### Guest weigh-in
 

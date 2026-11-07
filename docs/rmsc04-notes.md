@@ -218,7 +218,7 @@ WHR, and a woman's report.
 - Guests are excluded from auto-assignment (`_profile_map(guests=False)`), the person picker,
   claim menus and the scale-profile select. Deleting a guest profile deletes its readings.
 
-## 6d. Household matching (experiment, needs a test on the Pi)
+## 6d. Household matching (verified on the Pi, 2026-11-07)
 
 Goal: the scale's own analysis for every household member, hands-free. The scale gets one b2
 at connect, before anyone's weight is known; the weight settles about 2–3 s in, the scale
@@ -237,12 +237,27 @@ record about 16 s after 0x24. So `ble-scale-sync/patches/rmsc04-household.patch`
 Scale Hub stores these as `rec_*` columns and credits the record to `sentTo` (else the scale
 profile) only if `100·sqrt(weight / record BMI)` is within 1.5 cm of that person's height.
 
-**Unknown until tested:** whether the scale uses a b2 written after 0x24. The test: turn the
-setting on, have two people of clearly different height weigh in, and check in the Body tab (or
-`journalctl -u ble-scale -f -a` with debug on: `household: sending <slug>'s profile`, then the
-record's BMI) whether each result fits that person's height. If the scale ignores the late b2,
-every result fits the connect-time profile's height, nothing wrong is credited, and the setting
-can be turned off.
+**Verified: the scale uses a b2 written after 0x24.** Test on the owner's Pi: connect-time b2 =
+the scale profile (180 cm); a second household member (163 cm in Scale Hub) stepped on, the
+weight settled at 56.10 kg, the patch logged `household: sending <slug>'s profile`, and the
+record came back with fat 19.3 %, skeletal muscle 44.7 %, visceral 3 and a BMI that gives
+**163.1 cm** (Scale Hub: `verified: true`, `via: household`). ble-scale-sync's own D079 gate
+logged "the scale's BMI does not fit the height sent to it", because it compares against the
+connect-time profile: further proof the scale switched heights. So the scale recomputes for the
+latest b2 written before its body scan (status 0x09).
+
+Limitation (verified): the patch reacts to 0x24, which only comes when the weight settles
+**after** the Pi connected. When someone is already standing on the scale at connect (the
+weight locked first: first status 0x09, no 0x24, the D057 path), there is no live weight to
+match on and the record is computed for the connect-time profile. That is right for the scale
+profile person; anyone else gets the model for that weigh-in. Stepping on once the scale has
+woken and the Pi has connected avoids it. Whether a b2 written after 0x09 still counts is
+untested.
+
+Side effect handled: ble-scale-sync matches every weigh-in to its one config user and writes
+that weigh-in's weight as the user's `last_known_weight` about 5 s after exporting (it goes to
+the scale in the next connect's b2). Scale Hub runs `sync_scale` 20 s after any weigh-in that
+isn't the scale profile's, which puts the scale profile's own last weight back.
 
 ## 7. How to test and debug
 
@@ -266,7 +281,8 @@ can be turned off.
 
 ## 8. Open questions
 
-- Does a b2 sent after 0x24 change the 0x25 record? Being tested with the household patch (6d).
+- Does a b2 written after status 0x09 (scan already running) still change the record? It would
+  cover people who are on the scale before the Pi connects (6d).
 - Is status [9] the battery level?
 - 0x26 stored records: ble-scale-sync ignores them; they could recover weigh-ins taken while
   the Pi was down.

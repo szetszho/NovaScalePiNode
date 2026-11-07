@@ -196,6 +196,7 @@ RESYNC_SECONDS = 6 * 3600  # re-check the profile byte (age changes on birthdays
 GUEST_MINUTES = 10         # a guest session ends by itself when nobody weighs in by then
 GUEST_READY_SECONDS = 12   # ble-scale-sync's restart (systemd RestartSec=5) plus start-up
 GUEST_COLOR = "#8a8580"
+LAST_WEIGHT_RESTORE_SECONDS = 20  # after ble-scale-sync's own last_known_weight write (about 5 s)
 # ble-scale-sync applies a config change only before its next scan, and an idle scan can run until
 # someone steps on, so starting or cancelling a guest session restarts it (same user, so a SIGTERM;
 # systemd brings it back with the new profile). SCALE_HUB_RESTART_BSS=0 turns that off.
@@ -1091,6 +1092,14 @@ class Store:
                 log.info("Guest weigh-in done: %.2f kg (id %s)", weight, cur.lastrowid)
             elif assign and self.get_setting("household") == "1":
                 threading.Thread(target=self.write_household, daemon=True).start()  # weights drift
+            if not guest and assign and self.get_setting("scale_profile") and prof != self.get_setting("scale_profile"):
+                # ble-scale-sync matches every weigh-in to its one config user and, about 5 s
+                # after exporting, writes that weigh-in's weight as the user's last_known_weight,
+                # which goes to the scale in the next connect's b2. Put the scale profile's own
+                # weight back once it has done that (sync_scale writes only when it changed).
+                t = threading.Timer(LAST_WEIGHT_RESTORE_SECONDS, self.sync_scale)
+                t.daemon = True
+                t.start()
             return cur.lastrowid, "created", prof
 
     def claim(self, mid: int, profile: str | None, confirm: bool) -> dict:
