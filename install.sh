@@ -59,11 +59,21 @@ sudo apt-get install -y -qq git build-essential >/dev/null
 mkdir -p "$BSS_DIR"
 SRC_DIR="$BSS_DIR/src"
 if [[ -d "$SRC_DIR/.git" ]]; then
-  git -C "$SRC_DIR" checkout -q -- .   # drop any local changes (an older install patched it)
+  git -C "$SRC_DIR" checkout -q -- .   # drop last install's patches before updating
   git -C "$SRC_DIR" pull --ff-only -q
 else
   git clone -q --depth 1 https://github.com/KristianP26/ble-scale-sync.git "$SRC_DIR"
 fi
+# Local patches (ble-scale-sync/patches/): the household patch lets the scale compute for
+# whoever stepped on. A patch that no longer applies to a newer ble-scale-sync is skipped.
+for patch in "$HUB_DIR"/ble-scale-sync/patches/*.patch; do
+  [[ -e "$patch" ]] || continue
+  if git -C "$SRC_DIR" apply --check "$patch" 2>/dev/null; then
+    git -C "$SRC_DIR" apply "$patch" && echo "Applied $(basename "$patch")"
+  else
+    echo "warning: $(basename "$patch") does not apply to this ble-scale-sync version; skipped"
+  fi
+done
 (cd "$SRC_DIR" && npm ci --no-fund --no-audit && npm run build)
 sudo npm install -g "$SRC_DIR" --no-fund --no-audit
 BSS_BIN="$(command -v ble-scale-sync)"

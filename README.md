@@ -134,6 +134,18 @@ figures and impedances come through for everyone, and Scale Hub works out who it
 several users there (for example Garmin per person), weigh-ins matched to the others still get
 impedances and the model, but not the scale's own figures.
 
+### Renpho figures for everyone (experimental)
+
+Turn on **Settings → Scale profile → Renpho figures for everyone** to get the scale's own
+analysis for every household member, not only the scale profile. Scale Hub writes
+`~/ble-scale-sync/household.json` (each person's height, profile byte and usual weight), and the
+ble-scale-sync household patch (`ble-scale-sync/patches/`, applied by `install.sh`) sends the
+profile of whoever it matches by weight once the weight settles, about 6 seconds before the scale
+starts its body scan. Each result is checked: the scale's BMI has to give back that person's
+height within 1.5 cm, otherwise the result isn't credited to them and they get the model. The
+Body tab says which happened. If two people weigh within about a kilo of each other, the patch
+doesn't guess and the scale keeps the scale profile's figures.
+
 ### Guest weigh-in
 
 For a visitor: **Guest weigh-in** (person menu or Settings → Guests), enter height, age and sex,

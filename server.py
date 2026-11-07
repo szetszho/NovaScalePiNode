@@ -241,7 +241,13 @@ ASSIGN_COLUMNS = {
     "confidence": "REAL",
     "claimed_at": "TEXT",
     "scale_for": "TEXT",   # the Scale Hub profile the scale was set to compute for at this weigh-in
+    # The 0x25 record as the scale sent it (ble-scale-sync household patch, payload "rmsc04"):
+    "rec_fat": "REAL", "rec_bmi": "REAL", "rec_smm": "REAL", "rec_visceral": "REAL",
+    "rec_slot": "INTEGER", "rec_sent_to": "TEXT", "rec_sent_height": "REAL",
 }
+REC_FIELDS = {"fatPercent": "rec_fat", "bmi": "rec_bmi", "skeletalMusclePercent": "rec_smm",
+              "visceralFat": "rec_visceral", "slot": "rec_slot", "sentTo": "rec_sent_to", "sentHeight": "rec_sent_height"}
+HEIGHT_MATCH_CM = 1.5  # the record's BMI must give back the height that was sent, within this
 
 
 def utc_now() -> datetime:
@@ -567,6 +573,7 @@ class Store:
         self.conn.executescript(SCHEMA)
         self._migrate()
         self.last_sync: dict = {}
+        self.last_household: dict = {}
 
     def _migrate(self):
         existing = {r["name"] for r in self.conn.execute("PRAGMA table_info(measurements)")}
@@ -673,6 +680,8 @@ class Store:
             saved = dict(self.conn.execute("SELECT * FROM profiles WHERE slug=?", (slug,)).fetchone())
         if self.get_setting("scale_profile") == slug:
             self.sync_scale()
+        if self.get_setting("household") == "1":
+            self.write_household()
         return saved
 
     def delete_profile(self, slug: str) -> bool:
@@ -757,6 +766,48 @@ class Store:
         log.info("Scale profile sync: %s", status["message"])
         return status
 
+    # --- household: the scale computes for whoever stepped on --------------
+    # With the ble-scale-sync household patch, household.json (next to config.yaml) lists each
+    # person's height, profile byte and reference weight; the patch sends the nearest person's
+    # profile once the weight settles. Off while a guest weigh-in runs.
+
+    def household_people(self) -> list[dict]:
+        people = []
+        with self.lock:
+            refs = self._trusted_refs()
+            for slug, p in self._profile_map(guests=False).items():
+                age = age_on(p.get("birth_date"), utc_now())
+                if not p.get("height_cm") or age is None or p.get("sex") not in ("male", "female"):
+                    continue
+                recent = [w for _, w in (refs.get(slug) or [])[-HISTORY_READINGS:]]
+                weight = statistics.median(recent) if recent else p.get("start_weight")
+                if not weight:
+                    continue
+                people.append({"slug": slug, "name": p["name"], "height_cm": p["height_cm"],
+                               "byte": profile_byte(p["sex"], age), "weight": round(weight, 2)})
+        return people
+
+    def write_household(self) -> dict:
+        path = BSS_CONFIG.with_name("household.json")
+        enabled = self.get_setting("household") == "1" and self.get_setting("guest_state") != "waiting"
+        people = self.household_people() if enabled else []
+        doc = {"enabled": enabled and bool(people), "updated": to_iso(utc_now()),
+               "people": [{k: v for k, v in q.items() if k != "name"} for q in people]}
+        status = {"enabled": self.get_setting("household") == "1", "path": str(path),
+                  "people": [{"name": q["name"], "height_cm": q["height_cm"], "weight": q["weight"]} for q in people]}
+        try:
+            if path.parent.is_dir():
+                tmp = path.with_name(path.name + ".tmp")
+                tmp.write_text(json.dumps(doc, indent=1), encoding="utf-8")
+                os.replace(tmp, path)
+                status["ok"] = True
+            else:
+                status.update(ok=False, message=f"{path.parent} does not exist")
+        except OSError as exc:
+            status.update(ok=False, message=str(exc))
+        self.last_household = status
+        return status
+
     # --- guest weigh-in -----------------------------------------------------
     # One weigh-in for someone without a profile: a temporary guest profile becomes the scale
     # profile, the next reading is theirs, then the previous scale profile comes back.
@@ -822,6 +873,7 @@ class Store:
             self.set_setting(k, None)
         self.set_setting("scale_profile", slug)
         sync = self.sync_scale()
+        self.write_household()  # off while the guest weighs in
         if RESTART_BSS:
             restart_bss()
         t = threading.Timer(GUEST_MINUTES * 60 + 2, self.guest_status)  # runs the expiry check
@@ -835,6 +887,8 @@ class Store:
         self.set_setting("scale_profile", prev or None)
         self.set_setting("guest_prev", None)
         self.sync_scale()
+        if self.get_setting("guest_state") != "waiting":
+            self.write_household()
 
     def cancel_guest(self, reason: str = "cancelled", restart: bool = True) -> dict:
         if self.get_setting("guest_state") != "waiting":
@@ -972,6 +1026,14 @@ class Store:
             for f in METRIC_FIELDS
             for v in [payload.get(f)]
         }
+        rec_in = payload.get("rmsc04") if isinstance(payload.get("rmsc04"), dict) else {}
+        rec = {}
+        for key, col in REC_FIELDS.items():
+            v = rec_in.get(key)
+            if col == "rec_sent_to":
+                rec[col] = v if isinstance(v, str) and re.fullmatch(r"[a-z0-9-]{1,64}", v) else None
+            else:
+                rec[col] = float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
 
         with self.lock:
             lo = to_iso(ts - timedelta(seconds=DUPLICATE_WINDOW_SECONDS))
@@ -991,10 +1053,10 @@ class Store:
                 new = sum(v is not None for v in values.values())
                 if new <= have:
                     return dup["id"], "duplicate", dup["profile"]
-                sets = ", ".join(f'"{f}"=?' for f in METRIC_FIELDS)
+                sets = ", ".join(f'"{f}"=?' for f in [*METRIC_FIELDS, *rec])
                 self.conn.execute(
                     f"UPDATE measurements SET {sets}, raw=? WHERE id=?",
-                    [*(values[f] for f in METRIC_FIELDS), json.dumps(payload), dup["id"]],
+                    [*(values[f] for f in METRIC_FIELDS), *rec.values(), json.dumps(payload), dup["id"]],
                 )
                 self.conn.commit()
                 return dup["id"], "updated", dup["profile"]
@@ -1010,9 +1072,9 @@ class Store:
                 method = "auto" if prof else "none"
             scale_for = self.get_setting("scale_profile") if ts >= utc_now() - timedelta(hours=1) else None
             cols = ["ts", "user_slug", "user_name", *METRIC_FIELDS, "raw",
-                    "profile", "assign_method", "auto_profile", "confidence", "scale_for"]
+                    "profile", "assign_method", "auto_profile", "confidence", "scale_for", *rec]
             row = [to_iso(ts), user_slug, user_name, *(values[f] for f in METRIC_FIELDS), json.dumps(payload),
-                   prof, method, guess, conf, scale_for]
+                   prof, method, guess, conf, scale_for, *rec.values()]
             cur = self.conn.execute(
                 f"INSERT INTO measurements ({', '.join(chr(34) + c + chr(34) for c in cols)}) "
                 f"VALUES ({', '.join('?' for _ in cols)})",
@@ -1027,6 +1089,8 @@ class Store:
                 self.set_setting("guest_state", "done")
                 self._restore_scale_profile()
                 log.info("Guest weigh-in done: %.2f kg (id %s)", weight, cur.lastrowid)
+            elif assign and self.get_setting("household") == "1":
+                threading.Thread(target=self.write_household, daemon=True).start()  # weights drift
             return cur.lastrowid, "created", prof
 
     def claim(self, mid: int, profile: str | None, confirm: bool) -> dict:
@@ -1085,7 +1149,28 @@ class Store:
                     d[f] = r[f]
             p = profiles.get(r["profile"]) if r["profile"] else None
             scale = None
-            if r["skeletalMusclePercent"] is not None and r["bodyFatPercent"] is not None:
+            if r["rec_fat"] and r["rec_bmi"]:
+                # The scale's raw record. Whose it is: the household person the patch sent it to,
+                # else the scale profile of the moment. Trusted only when the record's BMI gives
+                # back that person's height (the scale's figures depend on the height it used).
+                computed_for = r["rec_sent_to"] or r["scale_for"] or (
+                    scale_profile if scale_profile and r["user_slug"] == bss_slug else None)
+                implied = 100 * math.sqrt(r["weight"] / r["rec_bmi"])
+                owner = profiles.get(computed_for) if computed_for else None
+                verified = bool(owner and owner.get("height_cm") and abs(implied - owner["height_cm"]) <= HEIGHT_MATCH_CM)
+                scale = {"bodyFatPercent": r["rec_fat"], "skeletalMusclePercent": r["rec_smm"],
+                         "visceralFat": r["rec_visceral"],
+                         "skeletalMuscleMass": round(r["rec_smm"] * r["weight"] / 100, 1) if r["rec_smm"] else None}
+                split = renpho_split(r["weight"], r["rec_fat"])
+                scale.update(waterPercent=split["waterPercent"], boneMass=split["boneMass"],
+                             muscleMass=split["muscleMass"], proteinMass=round(split["proteinMass"], 2),
+                             bmr=split["bmr"])
+                scale = {k: v for k, v in scale.items() if v is not None}
+                scale.update(computed_for=computed_for, implied_height=round(implied, 1), verified=verified,
+                             via="household" if r["rec_sent_to"] else "scale profile",
+                             mine=bool(p and verified and computed_for == p["slug"]))
+                d["scale"] = scale
+            elif r["skeletalMusclePercent"] is not None and r["bodyFatPercent"] is not None:
                 # The scale's own analysis, computed for the profile ble-scale-sync sent it: the
                 # Scale Hub profile set as the scale profile then (scale_for). Older or imported
                 # readings only carry ble-scale-sync's user slug: its first user is taken to be
@@ -1121,7 +1206,8 @@ class Store:
                 use_scale = scale and scale["mine"] and p.get("primary_source", "scale") != "model"
                 primary = d.get("model", {})
                 if use_scale:
-                    primary = {**primary, **{k: v for k, v in scale.items() if k not in ("computed_for", "mine")},
+                    meta = ("computed_for", "mine", "implied_height", "verified", "via")
+                    primary = {**primary, **{k: v for k, v in scale.items() if k not in meta},
                                "composition_source": "scale"}
                 for k, v in primary.items():
                     d[k] = v
@@ -1255,7 +1341,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, self.store.profiles())
         if path == "/api/settings":
             return self._json(200, {"scale_profile": self.store.get_setting("scale_profile"),
-                                    "sync": self.store.last_sync})
+                                    "sync": self.store.last_sync, "household": self.store.last_household})
         if path == "/api/guest":
             return self._json(200, self.store.guest_status())
         if path == "/api/recent":
@@ -1298,11 +1384,17 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, self.store.close_guest())
             if path == "/api/settings":
                 body = self._body()
+                if "household" in body:
+                    self.store.set_setting("household", "1" if body["household"] else "0")
+                    self.store.write_household()
                 if "scale_profile" in body:
                     sync = self.store.set_scale_profile(body["scale_profile"] or None)
-                else:
+                elif "household" not in body:
                     sync = self.store.sync_scale()
-                return self._json(200, {"scale_profile": self.store.get_setting("scale_profile"), "sync": sync})
+                else:
+                    sync = self.store.last_sync
+                return self._json(200, {"scale_profile": self.store.get_setting("scale_profile"), "sync": sync,
+                                        "household": self.store.last_household})
             m = re.fullmatch(r"/api/profiles/([a-z0-9-]+)", path)
             if m:
                 return self._json(200, self.store.save_profile(self._body(), m.group(1)))
@@ -1402,6 +1494,7 @@ def main(argv=None):
     def resync():
         try:
             store.sync_scale()
+            store.write_household()
         except Exception:  # never let the timer thread die
             log.exception("scale profile sync failed")
         t = threading.Timer(RESYNC_SECONDS, resync)

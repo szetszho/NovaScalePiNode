@@ -207,6 +207,32 @@ WHR, and a woman's report.
 - Guests are excluded from auto-assignment (`_profile_map(guests=False)`), the person picker,
   claim menus and the scale-profile select. Deleting a guest profile deletes its readings.
 
+## 6d. Household matching (experiment, needs a test on the Pi)
+
+Goal: the scale's own analysis for every household member, hands-free. The scale gets one b2
+at connect, before anyone's weight is known; the weight settles about 2–3 s in, the scale
+reports 0x09 (weight locked, start of the body scan) about 6 s later, and sends the 0x25
+record about 16 s after 0x24. So `ble-scale-sync/patches/rmsc04-household.patch`:
+
+- reads `household.json` (cwd of ble-scale-sync = `~/ble-scale-sync`, or `BLE_RMSC04_HOUSEHOLD`),
+  written by Scale Hub (`write_household`) when the setting is on: slug, height, profile byte
+  and reference weight (median of the last 5 trusted readings, else usual weight) per person;
+- on the first 0x24, picks the nearest reference weight within max(3 kg, 5 %) and at least
+  1 kg clearer than the next person, and writes that person's b2 (guest slot 09, their height
+  and byte, the settled weight, seq 2);
+- adds `rmsc04` to the payload: record fat, BMI, skeletal muscle %, visceral, slot ([32]),
+  `sentTo` and `sentHeight`.
+
+Scale Hub stores these as `rec_*` columns and credits the record to `sentTo` (else the scale
+profile) only if `100·sqrt(weight / record BMI)` is within 1.5 cm of that person's height.
+
+**Unknown until tested:** whether the scale uses a b2 written after 0x24. The test: turn the
+setting on, have two people of clearly different height weigh in, and check in the Body tab (or
+`journalctl -u ble-scale -f -a` with debug on: `household: sending <slug>'s profile`, then the
+record's BMI) whether each result fits that person's height. If the scale ignores the late b2,
+every result fits the connect-time profile's height, nothing wrong is credited, and the setting
+can be turned off.
+
 ## 7. How to test and debug
 
 - Live log: `journalctl -u ble-scale -f -a` (`-a`, or journald shows `[blob data]`).
@@ -223,8 +249,7 @@ WHR, and a woman's report.
 
 ## 8. Open questions
 
-- Does a b2 sent after 0x24 (for example with the matched user's height) change the 0x25
-  record? Would let the scale compute for whoever is on it. Untested.
+- Does a b2 sent after 0x24 change the 0x25 record? Being tested with the household patch (6d).
 - Is status [9] the battery level?
 - 0x26 stored records: ble-scale-sync ignores them; they could recover weigh-ins taken while
   the Pi was down.

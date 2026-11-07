@@ -62,7 +62,7 @@ Worth stating in `docs/guide/scales/renpho.md`, because it means the D079 gate's
 birth-date checks protect against less than they seem to, and the height check
 (`fitsSentHeight`) is the one that matters.
 
-## 7. Multi-user: send the matched user's profile after 0x24 (untested idea)
+## 7. Multi-user: send the matched user's profile after 0x24 (prototype in `ble-scale-sync/patches/rmsc04-household.patch`, not yet confirmed)
 
 The record arrives about 16 s after 0x24, after status 0x09 and 0x11. By 0x24 ble-scale-sync
 knows the weight and could match the user, then write b2 again with that user's height and

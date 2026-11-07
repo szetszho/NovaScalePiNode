@@ -1,0 +1,185 @@
+diff --git a/src/scales/renpho-msc04.ts b/src/scales/renpho-msc04.ts
+index eafc1e5..942bf31 100644
+--- a/src/scales/renpho-msc04.ts
++++ b/src/scales/renpho-msc04.ts
+@@ -1,3 +1,4 @@
++import { readFileSync } from 'node:fs';
+ import type {
+   AckProtocol,
+   AdapterRuntimeConfig,
+@@ -187,6 +188,12 @@ interface OwnProfilePin {
+ interface PinnedRecord {
+   rec: CompositionRecord;
+   guestProfile: boolean;
++  /** Local patch: record byte [32], the slot the scale computed for. */
++  slot?: number;
++  /** Local patch: the household person whose b2 went out after 0x24, if any. */
++  sentTo?: string | null;
++  /** Local patch: the height in the last b2 of the session, in 0.1 cm. */
++  sentHeightTenths?: number | null;
+   /** Set only when ble.rmsc04_profile_byte went out in this session's b2. */
+   own?: OwnProfilePin;
+ }
+@@ -276,6 +283,58 @@ const MAX_ZONE_MINUTES = 840;
+  */
+ const HANDSHAKE_ENV = 'BLE_RMSC04_HANDSHAKE';
+ 
++// ─── Local patch (Scale Hub): the scale computes for whoever stepped on ──────
++//
++// Scale Hub writes household.json (next to config.yaml, or BLE_RMSC04_HOUSEHOLD):
++//   {"enabled": true, "people": [{"slug", "height_cm", "byte", "weight"}]}
++// When the weight settles (0x24), the person whose reference weight is nearest gets their
++// b2 written (guest slot 09, their height and profile byte) before the scale starts its body
++// scan (status 0x09, about 6 s later), so the 0x25 record is computed for them. The record's
++// raw figures go out in the payload as `rmsc04`; Scale Hub checks the record's BMI against
++// the height sent before it trusts them. No file, or enabled false: nothing changes.
++const HOUSEHOLD_ENV = 'BLE_RMSC04_HOUSEHOLD';
++const HOUSEHOLD_FILE = 'household.json';
++const HOUSEHOLD_SEQ = 2;
++
++interface HouseholdPerson {
++  slug: string;
++  heightTenths: number;
++  byte: number;
++  weight: number;
++}
++
++function readHousehold(): HouseholdPerson[] {
++  let raw: unknown;
++  try {
++    raw = JSON.parse(readFileSync(process.env[HOUSEHOLD_ENV] || HOUSEHOLD_FILE, 'utf8'));
++  } catch {
++    return [];
++  }
++  const doc = raw as { enabled?: unknown; people?: unknown } | null;
++  if (!doc || doc.enabled !== true || !Array.isArray(doc.people)) return [];
++  const out: HouseholdPerson[] = [];
++  for (const item of doc.people as Record<string, unknown>[]) {
++    const h = Number(item?.height_cm);
++    const b = Number(item?.byte);
++    const w = Number(item?.weight);
++    if (typeof item?.slug !== 'string' || !(h >= 50 && h <= 250)) continue;
++    if (!Number.isInteger(b) || b < 0 || b > 0xff || !(w > 0 && w <= 300)) continue;
++    out.push({ slug: item.slug, heightTenths: Math.round(h * 10), byte: b, weight: w });
++  }
++  return out;
++}
++
++/** Nearest reference weight within max(3 kg, 5 %), and at least 1 kg clearer than the next. */
++export function matchHousehold(people: HouseholdPerson[], weight: number): HouseholdPerson | null {
++  const ranked = people
++    .map((p) => ({ p, d: Math.abs(weight - p.weight) }))
++    .sort((a, b) => a.d - b.d);
++  const best = ranked[0];
++  if (!best || best.d > Math.max(3, 0.05 * best.p.weight)) return null;
++  if (ranked[1] && ranked[1].d - best.d < 1) return null;
++  return best.p;
++}
++
+ export type ConnectWrites = 'full' | 'time' | 'none';
+ 
+ /**
+@@ -331,9 +390,12 @@ export function buildGuestProfileFrame(
+   seq: number,
+   profile: UserProfile,
+   profileByte: number = GUEST_PROFILE_BYTE,
++  weightKg?: number,
+ ): Buffer {
+   const height = heightTenths(profile) ?? FALLBACK_HEIGHT_TENTHS;
+-  const weight = weightCg(profile) ?? FALLBACK_WEIGHT_CG;
++  const override =
++    weightKg !== undefined && isPlausibleKg(weightKg) ? Math.round(weightKg * 100) : null;
++  const weight = override ?? weightCg(profile) ?? FALLBACK_WEIGHT_CG;
+   return build55aaFrame(CMD_PROFILE, [
+     seq & 0xff,
+     GUEST_SLOT,
+@@ -615,6 +677,8 @@ class Msc04Session {
+   sentHeightTenths: number | null = null;
+   /** Our b2 with ble.rmsc04_profile_byte, or null when it did not go out (D079). */
+   own: OwnProfile | null = null;
++  /** Local patch: the household person whose b2 went out after 0x24. */
++  household: HouseholdPerson | null = null;
+   /** The scale answered our b2 with 0x22 (its seq, slot 09). */
+   profileAnswered = false;
+   /** A 0x11 status came before the scale answered our b2 (the D079 latch). */
+@@ -933,12 +997,43 @@ export class RenphoMsc04Adapter
+     const weight = this.decodeWeight(data, frame.len, frame.frameLen);
+     if (weight === null) return null;
+     if (frame.cmd === CMD_FINAL) {
++      const first = !this.s.finalReceived;
+       this.s.finalReceived = true;
+       this.s.finalWeight = weight;
++      if (first) this.sendHouseholdProfile(weight);
+     }
+     return { weight, impedance: 0 };
+   }
+ 
++  /** Local patch: write the matched household person's b2 (see HOUSEHOLD_ENV). */
++  private sendHouseholdProfile(weightKg: number): void {
++    const ctx = this.s.ctx;
++    if (!ctx || this.s.diag.mode !== 'full') return;
++    const people = readHousehold();
++    if (people.length === 0) return;
++    const person = matchHousehold(people, weightKg);
++    if (!person) {
++      bleLog.info('Renpho R-MSC04: household: no clear match by weight, keeping the profile sent at connect');
++      return;
++    }
++    this.s.household = person;
++    bleLog.info(`Renpho R-MSC04: household: sending ${person.slug}'s profile for this weigh-in`);
++    void this.send(
++      ctx,
++      CMD_PROFILE,
++      () =>
++        buildGuestProfileFrame(
++          HOUSEHOLD_SEQ,
++          { ...ctx.profile, height: person.heightTenths / 10 },
++          person.byte,
++          weightKg,
++        ),
++      'household profile (b2)',
++      false,
++      person.byte,
++    );
++  }
++
+   /** Legacy single-char path (routes by frame content; the char UUID is irrelevant). */
+   parseNotification(data: Buffer): ScaleReading | null {
+     return this.parseCharNotification(CHR_NOTIFY, data);
+@@ -1063,6 +1158,9 @@ export class RenphoMsc04Adapter
+           },
+         }
+       : { rec, guestProfile: this.s.guestProfileSent };
++    record.slot = f[32];
++    record.sentTo = this.s.household?.slug ?? null;
++    record.sentHeightTenths = this.s.household?.heightTenths ?? this.s.sentHeightTenths;
+     const reading: ScaleReading = { weight, impedance: 0, scaleComposition: record };
+     this.s.diag.record = 'used';
+     bleLog.info(
+@@ -1147,6 +1245,26 @@ export class RenphoMsc04Adapter
+   }
+ 
+   computeMetrics(reading: ScaleReading, profile: UserProfile): BodyComposition {
++    const out = this.computeMetricsInner(reading, profile);
++    const pinned = reading.scaleComposition as PinnedRecord | undefined;
++    if (pinned) {
++      // Local patch: the record's own figures, for Scale Hub to verify and use.
++      Object.assign(out, {
++        rmsc04: {
++          fatPercent: pinned.rec.fatPercent,
++          bmi: pinned.rec.bmi,
++          skeletalMusclePercent: pinned.rec.skeletalMusclePercent,
++          visceralFat: pinned.rec.visceralFat,
++          slot: pinned.slot ?? null,
++          sentTo: pinned.sentTo ?? null,
++          sentHeight: pinned.sentHeightTenths != null ? pinned.sentHeightTenths / 10 : null,
++        },
++      });
++    }
++    return out;
++  }
++
++  private computeMetricsInner(reading: ScaleReading, profile: UserProfile): BodyComposition {
+     const pinned = reading.scaleComposition as PinnedRecord | undefined;
+     if (!pinned) return buildPayload(reading.weight, 0, {}, profile);
+     const segments = recordSegments(pinned.rec);
