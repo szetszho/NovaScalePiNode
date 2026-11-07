@@ -163,6 +163,19 @@ connections (0x11 to 0x15 in this session).
   sent" check relies on.
 - Timing: 0x24 at +3 s, status 0x09 6.2 s later, 0x11 + 0x25 15.8 s after 0x24.
 
+## Multi-user: the scale uses a profile sent after the weight settles
+
+With the link fixed I tried giving every household member the scale's own analysis. ble-scale-sync
+sends b2 at connect, before anyone's weight is known. A small local patch writes b2 again at the
+first 0x24 (settled weight), with the profile of the household member nearest by weight: their
+height and byte, guest slot 09. Result: the connect-time b2 had 180 cm; a 163 cm household member
+stepped on, the patch re-sent b2 with 163 cm at 0x24, and the 0x25 record's BMI gives **163.1 cm**
+(fat 19.3 %, skeletal muscle 44.7 %, visceral 3). The D079 gate logged "the scale's BMI does not fit
+the height sent to it", because it compares against the connect-time b2. So the scale computes the
+record for the latest b2 written before its body scan (status 0x09, about 6 s after 0x24), and
+multi-user households could get the scale's own figures with per-user b2 at 0x24. The limit: a
+weigh-in where the weight locked before the connect has no 0x24 to react to.
+
 ## Workaround (what I did)
 
 1. Run bluetoothd without the GAP plugin:

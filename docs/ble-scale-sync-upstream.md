@@ -64,13 +64,23 @@ Worth stating in `docs/guide/scales/renpho.md`, because it means the D079 gate's
 birth-date checks protect against less than they seem to, and the height check
 (`fitsSentHeight`) is the one that matters.
 
-## 7. Multi-user: send the matched user's profile after 0x24 (prototype in `ble-scale-sync/patches/rmsc04-household.patch`, not yet confirmed)
+## 7. Multi-user: send the matched user's profile after 0x24 (verified on one unit; prototype in `ble-scale-sync/patches/rmsc04-household.patch`)
 
 The record arrives about 16 s after 0x24, after status 0x09 and 0x11. By 0x24 ble-scale-sync
-knows the weight and could match the user, then write b2 again with that user's height and
-byte (the app also writes b2 after 0x24 in some sessions). If the scale uses the latest b2 for
-the record, every household member would get the scale's own figures. Test: two users of
-different heights in config, check the record's BMI against each height.
+knows the weight, so it can match the user and write b2 again with that user's height and byte.
+**The scale uses that late b2:** with a 180 cm profile sent at connect, a 163 cm household
+member's weigh-in got a record whose BMI gives 163.1 cm after the patch re-sent b2 at 0x24
+(the D079 gate then logged "the scale's BMI does not fit the height sent to it", since it
+compares against the connect-time profile). So every household member can get the scale's own
+figures. What it needs in ble-scale-sync:
+
+- match the user by weight at the first 0x24 (the existing `users[]` matching would do) and
+  write their b2 (guest slot 09, their height and byte, the settled weight);
+- the D079 gate and `fitsSentHeight` should compare against the **last** b2 of the session;
+- `last_known_weight` should be written for the matched user, not the first one.
+
+Limit: no 0x24 when the weight locked before the connect (D057 path); then the connect-time
+profile applies. Whether a b2 after status 0x09 still counts is untested.
 
 ## 8. Document that the app's per-limb figures are not in the record (verified)
 

@@ -850,8 +850,8 @@ function settingsTab() {
         <dt>Sex, age</dt><dd>${esc(sync.sex)}, ${sync.age} · profile byte <code>0x${esc(sync.profile_byte.toUpperCase())}</code></dd>
         <dt>Slot</dt><dd>guest slot 09, so your Renpho app user is never overwritten</dd></dl>` : ""}
       <div class="toggle-row"><label class="switch"><input type="checkbox" id="household" ${s.household?.enabled ? "checked" : ""}><span></span></label>
-        <div><b>Renpho figures for everyone</b> <span class="pill warn">experimental</span>
-          <div class="small muted">When the weight settles, the Pi sends the profile of whoever it matches by weight, so the scale computes its own analysis for that person. Each result is checked: its BMI has to give back that person's height, or the model is shown instead. Needs the ble-scale-sync household patch (installed by <code>install.sh</code>).</div>
+        <div><b>Renpho figures for everyone</b>
+          <div class="small muted">When the weight settles, the Pi sends the profile of whoever it matches by weight, so the scale computes its own analysis for that person. Each result is checked: its BMI has to give back that person's height, or the model is shown instead. Step on once the scale has woken and the Pi has connected; someone already standing on it at connect gets the model for that weigh-in. Needs the ble-scale-sync household patch (installed by <code>install.sh</code>).</div>
           ${s.household?.enabled ? `<div class="small" style="margin-top:8px">${s.household.ok === false ? `<span class="ev-high">${esc(s.household.message || "Could not write household.json")}</span>`
             : s.household.people?.length ? "Matching by weight: " + s.household.people.map((q) => `${esc(q.name)} (${fmtW(q.weight)}, ${q.height_cm} cm)`).join(" · ")
             : "Nobody has height, birth date, sex and a weight yet."}</div>` : ""}</div></div>
